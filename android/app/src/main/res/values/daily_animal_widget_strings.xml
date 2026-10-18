@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">J&amp;K Bestiary</string>
+    <string name="daily_animal_widget_description">A new curated animal fact and iNaturalist photo each day.</string>
+    <string name="daily_animal_photo_description">Photo of today’s animal</string>
+    <string name="daily_animal_widget_title">Daily animal</string>
+    <string name="daily_animal_title">Daily animal</string>
+</resources>
