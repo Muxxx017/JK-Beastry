@@ -256,6 +256,112 @@ void main() {
     expect(find.textContaining('whose names match “lion”'), findsOneWidget);
   });
 
+  testWidgets('Explore finds Hangul by regional name in the offline guide', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final service = InatService(
+      client: _FakeClient((request) async {
+        if (request.url.path.endsWith('/taxa/autocomplete')) {
+          return http.StreamedResponse(
+            Stream.value(
+              utf8.encode(
+                jsonEncode({
+                  'total_results': 1,
+                  'results': [
+                    {
+                      'id': 566590,
+                      'name': 'Cervus hanglu',
+                      'preferred_common_name': 'Tarim Red Deer',
+                      'rank': 'species',
+                    },
+                  ],
+                }),
+              ),
+            ),
+            200,
+          );
+        }
+        return http.StreamedResponse(
+          Stream.value(utf8.encode('{"total_results":0,"results":[]}')),
+          200,
+        );
+      }),
+    );
+    addTearDown(service.close);
+
+    await tester.pumpWidget(
+      MaterialApp(home: OnlineSpeciesPage(service: service)),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('onlineSpeciesSearchField')),
+      'Hangul',
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 600));
+
+    expect(find.byKey(const Key('curatedSpecies-hangul')), findsOneWidget);
+    expect(find.text('Kashmir Stag'), findsOneWidget);
+    expect(find.text('OFFLINE FIELD GUIDE'), findsOneWidget);
+    expect(find.textContaining('regional observations'), findsNothing);
+
+    for (final alias in ['Kashmiri stag', 'stag']) {
+      await tester.enterText(
+        find.byKey(const Key('onlineSpeciesSearchField')),
+        alias,
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('curatedSpecies-hangul')), findsOneWidget);
+      expect(find.text('OFFLINE FIELD GUIDE'), findsOneWidget);
+    }
+
+    await tester.enterText(
+      find.byKey(const Key('onlineSpeciesSearchField')),
+      'Hangul',
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('curatedSpecies-hangul')));
+    await tester.tap(find.byKey(const Key('curatedSpecies-hangul')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cervus hanglu kashmiricus'), findsOneWidget);
+    expect(find.text('Fun fact'), findsOneWidget);
+    expect(find.text('Genus'), findsOneWidget);
+    expect(find.textContaining('Also searched as: Hangul'), findsOneWidget);
+  });
+
+  testWidgets('online plant results do not include animal aliases', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final service = InatService(
+      client: _FakeClient((request) async {
+        return http.StreamedResponse(
+          Stream.value(utf8.encode('{"total_results":0,"results":[]}')),
+          200,
+        );
+      }),
+    );
+    addTearDown(service.close);
+
+    await tester.pumpWidget(
+      MaterialApp(home: OnlineSpeciesPage(service: service)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Plants'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('onlineSpeciesSearchField')),
+      'Kashmiri stag',
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 600));
+
+    expect(find.byKey(const Key('curatedSpecies-hangul')), findsNothing);
+    expect(find.text('Kashmir Stag'), findsNothing);
+  });
+
   testWidgets('reference photos open in a zoomable viewer with credit', (
     tester,
   ) async {

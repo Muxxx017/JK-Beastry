@@ -6,6 +6,16 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     commonName: 'Kashmir Stag',
     scientificName: 'Cervus hanglu kashmiricus',
     category: 'Mammal',
+    searchTerms: [
+      'Hangul',
+      'Hangul deer',
+      'Kashmir stag',
+      'Kashmiri stag',
+      'Kashmir red deer',
+      'Kashmiri red deer',
+      'Cervus hanglu',
+      'Dachigam stag',
+    ],
     taxonomy: {
       'Kingdom': 'Animalia',
       'Phylum': 'Chordata',
@@ -65,6 +75,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'musk-deer',
     commonName: 'Kashmir Musk Deer',
     scientificName: 'Moschus cupreus',
+    searchTerms: ['Himalayan musk deer', 'Kashmiri musk deer'],
     category: 'Mammal',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -96,6 +107,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'langur',
     commonName: 'Kashmir Gray Langur',
     scientificName: 'Semnopithecus ajax',
+    searchTerms: ['Kashmir grey langur', 'Western Himalayan langur'],
     category: 'Mammal',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -125,6 +137,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'monal',
     commonName: 'Himalayan Monal',
     scientificName: 'Lophophorus impejanus',
+    searchTerms: ['Danphe', 'Impeyan pheasant'],
     category: 'Bird',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -154,6 +167,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'siberian-crane',
     commonName: 'Siberian Crane',
     scientificName: 'Leucogeranus leucogeranus',
+    searchTerms: ['Siberian white crane'],
     category: 'Bird',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -183,6 +197,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'python',
     commonName: 'Indian Rock Python',
     scientificName: 'Python molurus',
+    searchTerms: ['Indian python', 'rock python'],
     category: 'Reptile',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -244,6 +259,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'himalayan-tahr',
     commonName: 'Himalayan Tahr',
     scientificName: 'Hemitragus jemlahicus',
+    searchTerms: ['Himalayan thar'],
     category: 'Mammal',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -275,6 +291,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'ladybird',
     commonName: 'Seven-Spot Ladybird',
     scientificName: 'Coccinella septempunctata',
+    searchTerms: ['seven spot ladybug', 'seven-spotted lady beetle'],
     category: 'Insect',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -305,6 +322,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'common-leopard',
     commonName: 'Common Leopard',
     scientificName: 'Panthera pardus',
+    searchTerms: ['Indian leopard'],
     category: 'Mammal',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -394,6 +412,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'himalayan-black-bear',
     commonName: 'Asiatic Black Bear',
     scientificName: 'Ursus thibetanus',
+    searchTerms: ['Asian black bear', 'Himalayan black bear'],
     category: 'Mammal',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -453,6 +472,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'markhor',
     commonName: 'Markhor',
     scientificName: 'Capra falconeri',
+    searchTerms: ['Kashmir markhor'],
     category: 'Mammal',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -484,6 +504,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'himalayan-griffon',
     commonName: 'Himalayan Griffon',
     scientificName: 'Gyps himalayensis',
+    searchTerms: ['Himalayan griffon vulture'],
     category: 'Bird',
     taxonomy: {
       'Kingdom': 'Animalia',
@@ -574,6 +595,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'kashmir-saffron',
     commonName: 'Saffron Crocus',
     scientificName: 'Crocus sativus',
+    searchTerms: ['Kashmir saffron', 'saffron crocus'],
     category: 'Plant',
     taxonomy: {
       'Kingdom': 'Plantae',
@@ -603,6 +625,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'walnut',
     commonName: 'Persian Walnut',
     scientificName: 'Juglans regia',
+    searchTerms: ['English walnut'],
     category: 'Plant',
     taxonomy: {
       'Kingdom': 'Plantae',
@@ -633,6 +656,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'himalayan-blue-pine',
     commonName: 'Blue Pine (Kail)',
     scientificName: 'Pinus wallichiana',
+    searchTerms: ['Kail pine', 'Himalayan blue pine'],
     category: 'Plant',
     taxonomy: {
       'Kingdom': 'Plantae',
@@ -662,6 +686,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'deodar',
     commonName: 'Deodar Cedar',
     scientificName: 'Cedrus deodara',
+    searchTerms: ['Himalayan cedar', 'deodar'],
     category: 'Plant',
     taxonomy: {
       'Kingdom': 'Plantae',
@@ -725,6 +750,7 @@ const List<ZoologySpecies> kSpeciesCatalog = [
     id: 'himalayan-birch',
     commonName: 'Himalayan Birch (Bhojpatra)',
     scientificName: 'Betula utilis',
+    searchTerms: ['Bhojpatra', 'Himalayan birch'],
     category: 'Plant',
     taxonomy: {
       'Kingdom': 'Plantae',

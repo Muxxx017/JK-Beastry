@@ -7,6 +7,7 @@ import 'package:zoology_app/models/inat_taxon.dart';
 import 'package:zoology_app/models/taxonomy_classification.dart';
 import 'package:zoology_app/models/zoology_species.dart';
 import 'package:zoology_app/data/species_data.dart';
+import 'package:zoology_app/screens/species_detail_page.dart';
 import 'package:zoology_app/services/inat_service.dart';
 import 'package:zoology_app/widgets/zoomable_photo.dart';
 
@@ -35,6 +36,17 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
   Timer? _searchDebounce;
   int _requestVersion = 0;
 
+  List<ZoologySpecies> get _curatedMatches {
+    final query = _normalizedSearchTerms(_queryController.text).toSet();
+    if (query.isEmpty) return const [];
+
+    return kSpeciesCatalog.where((species) {
+      if (_plants != (species.category == 'Plant')) return false;
+      final searchableTerms = _normalizedSearchTerms(species.searchableText);
+      return query.every(searchableTerms.contains);
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +74,9 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
         _loadingMore = true;
       } else {
         _loading = true;
+        _loadingMore = false;
+        _page = 0;
+        _hasMoreResults = false;
         _taxa = [];
       }
     });
@@ -116,6 +131,7 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
   @override
   Widget build(BuildContext context) {
     final nextPageAvailable = _hasMoreResults;
+    final curatedMatches = _curatedMatches;
 
     return Scaffold(
       appBar: AppBar(
@@ -233,12 +249,94 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
                   ),
                 ),
                 onChanged: (_) {
-                  setState(() {});
+                  _requestVersion++;
+                  setState(() {
+                    _taxa = [];
+                    _error = null;
+                    _loading = true;
+                  });
                   _scheduleSearch();
                 },
               ),
             ),
           ),
+          if (curatedMatches.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'From the offline field guide',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Curated reference entries · separate from online sighting counts',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverList(
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final species = curatedMatches[index];
+                return Card(
+                  margin: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                  clipBehavior: Clip.antiAlias,
+                  child: ListTile(
+                    key: Key('curatedSpecies-${species.id}'),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => SpeciesDetailPage(species: species),
+                        ),
+                      );
+                    },
+                    contentPadding: const EdgeInsets.all(14),
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFFEAF0E9),
+                      child: Icon(
+                        species.category == 'Plant'
+                            ? Icons.eco_rounded
+                            : Icons.pets_rounded,
+                        color: const Color(0xFF365B43),
+                      ),
+                    ),
+                    title: Text(species.commonName),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          species.scientificName,
+                          style: const TextStyle(fontStyle: FontStyle.italic),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          species.funFact,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 5),
+                        const Text(
+                          'OFFLINE FIELD GUIDE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            letterSpacing: 0.8,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                  ),
+                );
+              }, childCount: curatedMatches.length),
+            ),
+          ],
           if (_taxa.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
@@ -253,12 +351,19 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
                 ),
               ),
             ),
-          if (_loading)
+          if (_loading && _taxa.isEmpty && curatedMatches.isEmpty)
             const SliverFillRemaining(
               hasScrollBody: false,
               child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error != null)
+            ),
+          if (_loading && _taxa.isEmpty && curatedMatches.isNotEmpty)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: LinearProgressIndicator(),
+              ),
+            ),
+          if (!_loading && _error != null && curatedMatches.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
@@ -287,20 +392,46 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
                   ),
                 ),
               ),
-            )
-          else if (_taxa.isEmpty)
+            ),
+          if (!_loading && _error != null && curatedMatches.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.cloud_off_rounded),
+                    title: const Text('Online sightings are unavailable'),
+                    subtitle: const Text(
+                      'Your curated offline guide results remain available.',
+                    ),
+                    trailing: IconButton(
+                      tooltip: 'Retry online search',
+                      onPressed: _search,
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (!_loading &&
+              _error == null &&
+              _taxa.isEmpty &&
+              curatedMatches.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
               child: Center(
-                child: Text(
-                  _hasMoreResults
-                      ? 'No matching observations on this page. Load more to continue.'
-                      : 'No matching observed species found.',
-                  textAlign: TextAlign.center,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    _queryController.text.trim().isEmpty
+                        ? 'No observed species are available right now.'
+                        : 'No matching observed species or offline guide entries found.',
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
-            )
-          else
+            ),
+          if (_taxa.isNotEmpty)
             SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
                 final taxon = _taxa[index];
@@ -355,6 +486,12 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
     );
   }
 }
+
+List<String> _normalizedSearchTerms(String value) => value
+    .toLowerCase()
+    .split(RegExp(r'[^a-z0-9]+'))
+    .where((term) => term.isNotEmpty)
+    .toList();
 
 class _OnlineTaxonTile extends StatelessWidget {
   final InatTaxon taxon;
@@ -570,7 +707,10 @@ class _OnlineTaxonDetailsPageState extends State<OnlineTaxonDetailsPage> {
                 openUrl: widget.openUrl,
               ),
               const SizedBox(height: 20),
-              _CuratedNaturalHistory(species: curatedSpecies),
+              _CuratedNaturalHistory(
+                species: curatedSpecies,
+                onlineScientificName: taxon.name,
+              ),
               if (taxon.conservationStatus != null) ...[
                 const SizedBox(height: 8),
                 Text('Conservation: ${taxon.conservationStatus}'),
@@ -791,9 +931,12 @@ class _CachedTaxonPage extends StatelessWidget {
 }
 
 ZoologySpecies? _curatedSpeciesFor(String scientificName) {
-  final normalizedName = scientificName.trim().toLowerCase();
+  final onlineName = _normalizedSearchTerms(scientificName).take(2).join(' ');
   for (final species in kSpeciesCatalog) {
-    if (species.scientificName.trim().toLowerCase() == normalizedName) {
+    final curatedName = _normalizedSearchTerms(species.scientificName)
+        .take(2)
+        .join(' ');
+    if (curatedName == onlineName) {
       return species;
     }
   }
@@ -802,8 +945,12 @@ ZoologySpecies? _curatedSpeciesFor(String scientificName) {
 
 class _CuratedNaturalHistory extends StatelessWidget {
   final ZoologySpecies? species;
+  final String onlineScientificName;
 
-  const _CuratedNaturalHistory({required this.species});
+  const _CuratedNaturalHistory({
+    required this.species,
+    required this.onlineScientificName,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -832,6 +979,16 @@ class _CuratedNaturalHistory extends StatelessWidget {
           'Natural history & fun fact',
           style: Theme.of(context).textTheme.titleMedium,
         ),
+        if (item.scientificName.toLowerCase() !=
+            onlineScientificName.trim().toLowerCase()) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Related offline guide profile: ${item.commonName} '
+            '(${item.scientificName}). It shares the same genus and species '
+            'name; subspecies or accepted names may differ.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         const SizedBox(height: 10),
         _naturalHistoryField(context, 'Characteristics', item.feature),
         _naturalHistoryField(context, 'Identification', item.identification),

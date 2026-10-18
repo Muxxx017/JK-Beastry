@@ -88,15 +88,11 @@ class InatService {
       }),
     );
     final taxonRecords = matchingTaxaJson['results'] as List<dynamic>;
-    final queryTerms = query.toLowerCase().split(RegExp(r'\s+'));
+    final queryTerms = _searchTerms(query);
     final matchingTaxa = taxonRecords
         .whereType<Map<String, dynamic>>()
         .map(InatTaxon.fromAutocompleteJson)
-        .where((taxon) {
-          final searchableName = '${taxon.name} ${taxon.commonName ?? ''}'
-              .toLowerCase();
-          return queryTerms.every(searchableName.contains);
-        })
+        .where((taxon) => _nameMatchesQuery(taxon, queryTerms))
         .toList();
 
     if (matchingTaxa.isEmpty) {
@@ -123,11 +119,7 @@ class InatService {
     final taxa = counts
         .whereType<Map<String, dynamic>>()
         .map(InatTaxon.fromSpeciesCountJson)
-        .where((taxon) {
-          final searchableName = '${taxon.name} ${taxon.commonName ?? ''}'
-              .toLowerCase();
-          return queryTerms.every(searchableName.contains);
-        })
+        .where((taxon) => _nameMatchesQuery(taxon, queryTerms))
         .toList();
     final matchingTaxaCount = matchingTaxaJson['total_results'] as int? ?? 0;
     return InatSpeciesPage(
@@ -135,6 +127,17 @@ class InatService {
       totalResults: countsJson['total_results'] as int? ?? taxa.length,
       hasMore: page * pageSize < matchingTaxaCount,
     );
+  }
+
+  List<String> _searchTerms(String value) => value
+      .toLowerCase()
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((term) => term.isNotEmpty)
+      .toList();
+
+  bool _nameMatchesQuery(InatTaxon taxon, List<String> queryTerms) {
+    final nameTerms = _searchTerms('${taxon.name} ${taxon.commonName ?? ''}');
+    return queryTerms.every(nameTerms.contains);
   }
 
   Future<InatTaxon> getTaxonDetails(int id) async {

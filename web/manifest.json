@@ -1,11 +1,11 @@
 {
-    "name": "zoology_app",
-    "short_name": "zoology_app",
+    "name": "J&K Bestiary — Field Notes",
+    "short_name": "J&K Bestiary",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FAF9F5",
+    "theme_color": "#365B43",
+    "description": "An offline-first Jammu & Kashmir digital field notebook and species guide.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

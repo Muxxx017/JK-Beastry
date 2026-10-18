@@ -166,6 +166,38 @@ void main() {
     },
   );
 
+  test('name matching uses whole words, not fuzzy substrings', () async {
+    var requestedObservationCounts = false;
+    final service = InatService(
+      client: _FakeClient((request) async {
+        if (request.url.path.endsWith('/taxa/autocomplete')) {
+          return _jsonResponse({
+            'total_results': 1,
+            'results': [
+              {
+                'id': 12345,
+                'name': 'Stagmomantis carolina',
+                'preferred_common_name': 'Carolina Mantis',
+                'rank': 'species',
+              },
+            ],
+          });
+        }
+        requestedObservationCounts = true;
+        return _jsonResponse({'total_results': 0, 'results': []});
+      }),
+    );
+    addTearDown(service.close);
+
+    final result = await service.searchRegionalSpecies(
+      query: 'stag',
+      plants: false,
+    );
+
+    expect(result.taxa, isEmpty);
+    expect(requestedObservationCounts, isFalse);
+  });
+
   test(
     'plant searches use the Plantae taxon and details include photo licenses',
     () async {

@@ -17,8 +17,18 @@ flutter run -d edge
   plants, with identification, range caveats, habitat, diet, behavior, breeding,
   ecology, threats and an explicitly labeled fun fact where available. Offline
   search also matches those facts, not only names.
+- Explore searches use whole-word matching for live scientific/common names.
+  Matching entries from the offline guide appear in their own clearly labeled
+  section, including regional aliases such as Hangul, Kashmiri stag, Chinar,
+  Kail and Bhojpatra. These guide entries are not presented as online sightings.
+- Species profiles include the available genus-to-species classification,
+  field identification notes, life history, habitat, range caveats, ecological
+  role, threats, conservation context, fun facts and links for further research.
+  The curated profiles remain concise reference summaries rather than exhaustive
+  monographs; taxonomy and conservation assessments can change.
 - Create field observations with a camera/gallery photo, species name, place,
-  and notes. Notebook entries are saved on the device.
+  and notes. Notebook entries are saved on the device; open an entry to read its
+  full notes and pinch/zoom its photograph.
 - Open **Explore species online** to search 50 results per page from
   community-observed animal and plant species in Jammu & Kashmir or across
   India and neighboring Himalayan countries, view regional
@@ -37,6 +47,8 @@ flutter run -d edge
 - Online species records are served by the public iNaturalist API. Photo URLs
   and rights remain with their respective photographers; the app displays the
   attribution/license returned with each reference image.
+- The app uses a custom J&K Bestiary mountain-and-stag mark across its Android,
+  iOS, web and in-app identities.
 
 ## Data coverage and identification limits
 
@@ -75,4 +87,8 @@ web app bundle.
 flutter analyze
 flutter test
 flutter build web
+flutter build apk --release
 ```
+
+The Android release build is a direct-install APK. It is not signed with a
+Play Store production key.
