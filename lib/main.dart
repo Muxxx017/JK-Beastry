@@ -16,6 +16,7 @@ import 'package:zoology_app/theme/bestiary_theme.dart';
 import 'package:zoology_app/widgets/bestiary_banner.dart';
 import 'package:zoology_app/widgets/bestiary_mark.dart';
 import 'package:zoology_app/widgets/field_landscape.dart';
+import 'package:zoology_app/widgets/species_reference_photo.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -520,24 +521,17 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: BestiaryPalette.sage,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            animal.category == 'Bird'
-                                ? Icons.flutter_dash_rounded
-                                : animal.category == 'Mammal'
-                                ? Icons.pets_rounded
-                                : Icons.bug_report_outlined,
-                            color: BestiaryPalette.forest,
-                            size: 28,
+                        SizedBox(
+                          width: 92,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: SpeciesReferencePhoto(
+                              species: animal,
+                              height: 112,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1214,7 +1208,10 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                const FieldLandscape(),
+                                SpeciesReferencePhoto(
+                                  species: species,
+                                  height: 124,
+                                ),
                                 Positioned(
                                   left: 12,
                                   top: 12,

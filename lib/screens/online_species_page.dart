@@ -9,8 +9,10 @@ import 'package:zoology_app/models/zoology_species.dart';
 import 'package:zoology_app/data/species_data.dart';
 import 'package:zoology_app/screens/species_detail_page.dart';
 import 'package:zoology_app/services/inat_service.dart';
+import 'package:zoology_app/services/offline_species_service.dart';
 import 'package:zoology_app/theme/bestiary_theme.dart';
 import 'package:zoology_app/widgets/bestiary_banner.dart';
+import 'package:zoology_app/widgets/local_species_photo.dart';
 import 'package:zoology_app/widgets/zoomable_photo.dart';
 
 class OnlineSpeciesPage extends StatefulWidget {
@@ -620,7 +622,9 @@ class OnlineTaxonDetailsPage extends StatefulWidget {
 
 class _OnlineTaxonDetailsPageState extends State<OnlineTaxonDetailsPage> {
   late Future<InatTaxon> _details;
-  final OfflineTaxaStore _offlineStore = OfflineTaxaStore();
+  bool _savingOffline = false;
+  late final OfflineSpeciesService _offlineSpeciesService =
+      OfflineSpeciesService(inatService: widget.service);
 
   @override
   void initState() {
@@ -639,12 +643,18 @@ class _OnlineTaxonDetailsPageState extends State<OnlineTaxonDetailsPage> {
   }
 
   Future<void> _saveOffline() async {
+    if (_savingOffline) return;
+    setState(() => _savingOffline = true);
     try {
-      await _offlineStore.save(widget.taxon);
+      final result = await _offlineSpeciesService.download(await _details);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Species facts saved for offline reference.'),
+        SnackBar(
+          content: Text(
+            result.photoSaved
+                ? 'Species facts, taxonomy and credited photo saved offline.'
+                : 'Species facts and taxonomy saved. No photo has a license allowing offline reuse.',
+          ),
         ),
       );
     } catch (error) {
@@ -652,6 +662,8 @@ class _OnlineTaxonDetailsPageState extends State<OnlineTaxonDetailsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not save species facts: $error')),
       );
+    } finally {
+      if (mounted) setState(() => _savingOffline = false);
     }
   }
 
@@ -662,9 +674,15 @@ class _OnlineTaxonDetailsPageState extends State<OnlineTaxonDetailsPage> {
         title: Text(widget.taxon.displayName),
         actions: [
           IconButton(
-            tooltip: 'Save species facts offline',
-            onPressed: _saveOffline,
-            icon: const Icon(Icons.download_for_offline_outlined),
+            tooltip: 'Download species for offline use',
+            onPressed: _savingOffline ? null : _saveOffline,
+            icon: _savingOffline
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_for_offline_outlined),
           ),
         ],
       ),
@@ -719,17 +737,7 @@ class _OnlineTaxonDetailsPageState extends State<OnlineTaxonDetailsPage> {
             return const Center(child: CircularProgressIndicator());
           }
           final taxon = snapshot.data!;
-          final photos = taxon.photos.isNotEmpty
-              ? taxon.photos
-              : taxon.photoUrl == null
-              ? <InatTaxonPhoto>[]
-              : [
-                  InatTaxonPhoto(
-                    url: taxon.photoUrl,
-                    attribution: taxon.photoAttribution,
-                    license: taxon.photoLicense,
-                  ),
-                ];
+          final photos = taxon.availablePhotos;
           final curatedSpecies = _curatedSpeciesFor(taxon.name);
 
           return ListView(
@@ -920,7 +928,7 @@ class _OfflineSpeciesPageState extends State<OfflineSpeciesPage> {
                         const SizedBox(height: 6),
                         Text(
                           'Explore a species online and save its facts here. '
-                          'Photos and full articles still require internet.',
+                          'A licensed reference photo, taxonomy and available encyclopedia overview are saved with each download.',
                           style: Theme.of(context).textTheme.bodyMedium,
                           textAlign: TextAlign.center,
                         ),
@@ -944,17 +952,26 @@ class _OfflineSpeciesPageState extends State<OfflineSpeciesPage> {
               const Padding(
                 padding: EdgeInsets.only(bottom: 12),
                 child: Text(
-                  'Names and species facts are stored on this device. Reference photos and full articles still need internet.',
+                  'Downloaded species records, available taxonomy, encyclopedia summaries and reuse-licensed photos are stored on this device.',
                 ),
               ),
               ...taxa.map(
                 (taxon) => Card(
                   child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: BestiaryPalette.sage,
-                      child: Icon(
-                        Icons.menu_book_rounded,
-                        color: BestiaryPalette.forest,
+                    leading: SizedBox(
+                      width: 58,
+                      height: 58,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: taxon.offlinePhotoPath == null
+                            ? const ColoredBox(
+                                color: BestiaryPalette.sage,
+                                child: Icon(
+                                  Icons.menu_book_rounded,
+                                  color: BestiaryPalette.forest,
+                                ),
+                              )
+                            : LocalSpeciesPhoto(path: taxon.offlinePhotoPath!),
                       ),
                     ),
                     title: Text(
@@ -996,6 +1013,7 @@ class _CachedTaxonPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final curatedSpecies = _curatedSpeciesFor(taxon.name);
     return Scaffold(
       appBar: AppBar(title: Text(taxon.displayName)),
       body: ListView(
@@ -1004,7 +1022,7 @@ class _CachedTaxonPage extends StatelessWidget {
           const BestiaryBanner(
             eyebrow: 'Cached reference',
             title: 'A pocket field note',
-            subtitle: 'Names and basic records are stored locally; live references need a connection.',
+            subtitle: 'Downloaded source snapshot · ready offline.',
             height: 176,
           ),
           const SizedBox(height: 18),
@@ -1025,14 +1043,162 @@ class _CachedTaxonPage extends StatelessWidget {
             Text('Conservation: ${taxon.conservationStatus}'),
           const SizedBox(height: 20),
           const Text(
-            'Cached facts only. Reference images and encyclopedia information are shown online and are not stored in this offline record.',
+            'Saved source record. Encyclopedia and taxonomy information below are available offline.',
+          ),
+          const SizedBox(height: 16),
+          if (taxon.offlinePhotoPath != null) ...[
+            _OfflinePhotoPreview(
+              path: taxon.offlinePhotoPath!,
+              attribution: taxon.offlinePhotoAttribution,
+              license: taxon.offlinePhotoLicense,
+              sourceUrl: taxon.offlinePhotoSourceUrl ?? taxon.taxonUrl,
+            ),
+            const SizedBox(height: 16),
+          ] else
+            const Text(
+              'No reference photo with an approved offline-reuse license was available when this record was saved.',
+            ),
+          const Text(
+            'Scientific classification · GBIF Backbone Taxonomy',
+            style: TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
-          if (taxon.photoAttribution != null)
-            Text('Photo credit: ${taxon.photoAttribution}'),
-          if (taxon.photoLicense != null)
-            Text('Photo license: ${taxon.photoLicense}'),
+          if (taxon.offlineTaxonomy.isEmpty)
+            const Text('No confident GBIF classification was saved.')
+          else
+            ...taxon.offlineTaxonomy.entries.map(
+              (rank) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Text('${rank.key}: ${rank.value}'),
+              ),
+            ),
+          if (curatedSpecies != null) ...[
+            const SizedBox(height: 20),
+            _CuratedNaturalHistory(
+              species: curatedSpecies,
+              onlineScientificName: taxon.name,
+            ),
+          ],
+          if (taxon.wikipediaSummary != null &&
+              taxon.wikipediaSummary!.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text(
+              'Encyclopedia overview · Wikipedia',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(taxon.wikipediaSummary!),
+            const SizedBox(height: 6),
+            Text('Article: ${taxon.wikipediaUrl ?? 'Wikipedia'}'),
+          ],
+          const SizedBox(height: 16),
+          Text('Taxon data: ${taxon.taxonUrl}'),
+          const Text(
+            'Saved records reflect source data available at download time. Verify current taxonomy and conservation assessments with specialist references.',
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _OfflinePhotoPreview extends StatelessWidget {
+  final String path;
+  final String? attribution;
+  final String? license;
+  final String sourceUrl;
+
+  const _OfflinePhotoPreview({
+    required this.path,
+    required this.attribution,
+    required this.license,
+    required this.sourceUrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final credit = [
+      if (attribution?.trim().isNotEmpty == true) attribution!,
+      'License: ${license ?? 'unspecified'}',
+    ].join(' · ');
+    return InkWell(
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (context) => Dialog.fullscreen(
+          backgroundColor: Colors.black,
+          child: Scaffold(
+            backgroundColor: Colors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              title: const Text('Reference photo'),
+              actions: [
+                IconButton(
+                  tooltip: 'Close photo',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            body: Column(
+              children: [
+                Expanded(
+                  child: InteractiveViewer(
+                    minScale: 0.75,
+                    maxScale: 5,
+                    child: Center(
+                      child: LocalSpeciesPhoto(path: path, fit: BoxFit.contain),
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          credit,
+                          style: const TextStyle(color: Colors.white70),
+                          textAlign: TextAlign.center,
+                        ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            final opened = await launchUrl(
+                              Uri.parse(sourceUrl),
+                              mode: LaunchMode.externalApplication,
+                            );
+                            if (!opened && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Could not open the photo source.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.open_in_new_rounded),
+                          label: const Text('View image source'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      borderRadius: BorderRadius.circular(16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          height: 270,
+          width: double.infinity,
+          child: LocalSpeciesPhoto(path: path, fit: BoxFit.cover),
+        ),
       ),
     );
   }

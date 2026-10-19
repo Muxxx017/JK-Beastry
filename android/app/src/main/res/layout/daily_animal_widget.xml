@@ -5,12 +5,12 @@
     android:background="@drawable/daily_animal_widget_background"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:padding="8dp">
 
     <ImageView
         android:id="@+id/daily_animal_photo"
-        android:layout_width="96dp"
-        android:layout_height="112dp"
+        android:layout_width="80dp"
+        android:layout_height="96dp"
         android:background="#E7ECE5"
         android:contentDescription="@string/daily_animal_photo_description"
         android:scaleType="centerCrop"
@@ -50,7 +50,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:ellipsize="end"
-            android:maxLines="4"
+            android:maxLines="2"
             android:textColor="#344339"
             android:textSize="12sp" />
 
@@ -60,7 +60,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:ellipsize="end"
-            android:maxLines="2"
+            android:maxLines="1"
             android:textColor="#68756A"
             android:textSize="9sp" />
     </LinearLayout>

@@ -28,8 +28,13 @@ flutter run -d edge
 - Species profiles include the available genus-to-species classification,
   field identification notes, life history, habitat, range caveats, ecological
   role, threats, conservation context, fun facts and links for further research.
-  The curated profiles remain concise reference summaries rather than exhaustive
-  monographs; taxonomy and conservation assessments can change.
+  Profiles show credited iNaturalist reference photos when available, with a
+  Wikimedia Commons fallback for reusable, taxonomically matched images. Images
+  open in a zoomable viewer with a link to their source page. Broader species
+  matches for subspecies are identified as such rather than presented as an
+  exact subspecies photo. Curated profiles are concise, source-linked summaries
+  rather than exhaustive monographs; taxonomy and conservation assessments can
+  change.
 - Create field observations with a camera/gallery photo, species name, place,
   and notes. Notebook entries are saved on the device; open an entry to read its
   full notes and pinch/zoom its photograph.
@@ -46,10 +51,16 @@ flutter run -d edge
 - On Android, open the app once, then add the **Daily animal** home-screen
   widget from the launcher’s Widgets picker. It rotates through the curated
   animal facts by day and shows the common name, scientific name and fun fact.
-  The text works offline; an iNaturalist reference photo and its credit/license
-  load online. Photos are cached only when the license permits reuse.
-- Save individual online species facts to an offline library. Online photos and
-  full articles are not downloaded with the saved record.
+  Its compact layout shows a credited reference photo when available. Text and
+  reusable photos already cached by the widget remain available offline.
+- On a species profile or online species record, choose **Download for offline**
+  to save its taxon record, available GBIF classification, available Wikipedia
+  summary and a photo licensed for offline reuse. The app checks iNaturalist
+  first, then Wikimedia Commons for an exact scientific-name match. Records and
+  images remain on the device; remove them from **Saved species**. Photo credit,
+  license and source-page link are retained and displayed. Photos without a
+  CC0, public-domain or CC BY license are not copied; the app explains when a
+  record has no reusable image.
 - Online species records are served by the public iNaturalist API. Photo URLs
   and rights remain with their respective photographers; the app displays the
   attribution/license returned with each reference image.
@@ -62,13 +73,13 @@ The online explorer is an observation-based learning aid, not a complete
 taxonomic census or verified range database. It only lists species represented
 in iNaturalist observations in the selected geographic area and may contain
 gaps, incomplete information, or community identification errors. The bundled
-offline catalog is a curated starter set, not a downloaded catalogue of every
-species in Jammu & Kashmir or India. Some range statements are broad and need
-local verification; a country or region observation is not proof of native
-range. Online reference photos initially require an internet connection. The Android
-daily widget caches its current photo only when its license permits reuse;
-otherwise, the widget keeps the photo online-only. Photos in the species
-explorer are not bundled for offline reuse.
+offline catalog is a curated starter set, not a catalogue of every species in
+Jammu & Kashmir or India. Some range statements are broad and need local
+verification; a regional observation is not proof of native range. Reference
+photos and live summaries require an internet connection until downloaded.
+Downloaded iNaturalist and Wikimedia Commons photos are limited to CC0,
+public-domain and CC BY licenses, preserve the photographer attribution and
+link to the source page; other photos remain online-only.
 
 Offline natural-history entries are concise learning summaries. The reference
 buttons on each entry search published literature and specialist databases by

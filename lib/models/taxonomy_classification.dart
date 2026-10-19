@@ -47,6 +47,16 @@ class TaxonomyClassification {
   String? get sourceUrl =>
       usageKey == null ? null : 'https://www.gbif.org/species/$usageKey';
 
+  Map<String, String> get offlineRanks => {
+    'Kingdom': ?kingdom,
+    'Phylum': ?phylum,
+    'Class': ?className,
+    'Order': ?order,
+    'Family': ?family,
+    'Genus': ?genus,
+    'Species': ?species,
+  };
+
   List<MapEntry<String, String>> get ranks => [
     if (kingdom != null) MapEntry('Kingdom', kingdom!),
     if (phylum != null) MapEntry('Phylum', phylum!),

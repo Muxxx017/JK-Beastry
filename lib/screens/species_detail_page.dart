@@ -4,6 +4,8 @@ import 'package:zoology_app/models/zoology_species.dart';
 import 'package:zoology_app/theme/bestiary_theme.dart';
 import 'package:zoology_app/widgets/bestiary_mark.dart';
 import 'package:zoology_app/widgets/field_landscape.dart';
+import 'package:zoology_app/widgets/offline_species_download_button.dart';
+import 'package:zoology_app/widgets/species_reference_photo.dart';
 
 class SpeciesDetailPage extends StatelessWidget {
   final ZoologySpecies species;
@@ -22,6 +24,10 @@ class SpeciesDetailPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                SpeciesReferencePhoto(species: species, height: 280),
+                const SizedBox(height: 12),
+                OfflineSpeciesDownloadButton(species: species),
+                const SizedBox(height: 16),
                 Container(
                   width: double.infinity,
                   height: 228,

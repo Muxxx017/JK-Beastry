@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:zoology_app/models/inat_taxon.dart';
@@ -151,6 +152,244 @@ class InatService {
     return InatTaxon.fromDetailJson(results.first as Map<String, dynamic>);
   }
 
+  Future<InatTaxon?> findTaxonByScientificName(
+    String scientificName, {
+    bool allowBinomialFallback = true,
+  }) async {
+    final normalizedName = _normalizeScientificName(scientificName);
+    if (normalizedName.isEmpty) return null;
+
+    final exactMatch = await _findExactTaxon(normalizedName);
+    if (exactMatch != null || !allowBinomialFallback) return exactMatch;
+
+    final terms = normalizedName.split(' ');
+    if (terms.length < 3) return null;
+    return _findExactTaxon(terms.take(2).join(' '));
+  }
+
+  Future<InatTaxon?> _findExactTaxon(String scientificName) async {
+    final json = await _getJson(
+      Uri.https('api.inaturalist.org', '/v1/taxa/autocomplete', {
+        'q': scientificName,
+        'rank': 'species',
+        'per_page': '10',
+      }),
+    );
+    final results = json['results'];
+    if (results is! List) {
+      throw const FormatException('Unexpected taxon search results.');
+    }
+    for (final result in results.whereType<Map<String, dynamic>>()) {
+      final taxonName = result['name'];
+      if (taxonName is String &&
+          _normalizeScientificName(taxonName) == scientificName) {
+        return InatTaxon.fromAutocompleteJson(result);
+      }
+    }
+    return null;
+  }
+
+  Future<Uint8List> downloadReusablePhoto(InatTaxon taxon) async {
+    final photo = taxon.reusableOfflinePhoto;
+    if (photo == null) {
+      throw StateError(
+        'No photo with an approved offline-reuse license is available.',
+      );
+    }
+    return downloadPhoto(photo);
+  }
+
+  Future<Uint8List> downloadPhoto(InatTaxonPhoto photo) async {
+    final uri = Uri.tryParse(photo.url ?? '');
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        !_isTrustedPhotoHost(uri.host)) {
+      throw const FormatException('The reference photo URL is not trusted.');
+    }
+    final request = http.Request('GET', uri)
+      ..headers['User-Agent'] = 'JandKBestiary/1.0';
+    final response = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw http.ClientException(
+        'The reference photo returned HTTP ${response.statusCode}.',
+        uri,
+      );
+    }
+    const maxPhotoBytes = 12 * 1024 * 1024;
+    final contentLength = response.contentLength;
+    if (contentLength != null && contentLength > maxPhotoBytes) {
+      throw const FormatException(
+        'The reference photo has an invalid file size.',
+      );
+    }
+    final contentType = response.headers['content-type']?.toLowerCase();
+    if (contentType != null && !contentType.startsWith('image/')) {
+      throw const FormatException(
+        'The reference photo URL did not return an image.',
+      );
+    }
+    final bytes = BytesBuilder(copy: false);
+    var receivedBytes = 0;
+    await for (final chunk in response.stream.timeout(
+      const Duration(seconds: 30),
+    )) {
+      receivedBytes += chunk.length;
+      if (receivedBytes > maxPhotoBytes) {
+        throw const FormatException(
+          'The reference photo has an invalid file size.',
+        );
+      }
+      bytes.add(chunk);
+    }
+    if (receivedBytes == 0) {
+      throw const FormatException(
+        'The reference photo has an invalid file size.',
+      );
+    }
+    return bytes.takeBytes();
+  }
+
+  Future<InatTaxonPhoto?> findCommonsPhoto(String scientificName) async {
+    final name = _normalizeScientificName(scientificName);
+    if (name.isEmpty) return null;
+    final json = await _getJson(
+      Uri.https('commons.wikimedia.org', '/w/api.php', {
+        'action': 'query',
+        'generator': 'search',
+        'gsrsearch': '"$name"',
+        'gsrnamespace': '6',
+        'gsrlimit': '25',
+        'prop': 'imageinfo',
+        'iiprop': 'url|extmetadata',
+        'iiurlwidth': '1280',
+        'format': 'json',
+        'origin': '*',
+      }),
+      source: 'Wikimedia Commons',
+    );
+    final pages = (json['query'] as Map<String, dynamic>?)?['pages'];
+    if (pages is! Map<String, dynamic>) return null;
+    final candidates = pages.values.whereType<Map<String, dynamic>>().toList()
+      ..sort(
+        (a, b) => (a['index'] as int? ?? 0).compareTo(b['index'] as int? ?? 0),
+      );
+    final nameTokens = _scientificNameTokens(name);
+    for (final page in candidates) {
+      final imageInfo = page['imageinfo'];
+      if (imageInfo is! List || imageInfo.isEmpty) continue;
+      final info = imageInfo.first;
+      if (info is! Map<String, dynamic>) continue;
+      final metadata = info['extmetadata'];
+      if (metadata is! Map<String, dynamic>) continue;
+      final categories = _commonsMetadataValue(metadata, 'Categories');
+      final description = _commonsMetadataValue(metadata, 'ImageDescription');
+      if (!_containsScientificName(categories, nameTokens) &&
+          !_containsScientificName(description, nameTokens)) {
+        continue;
+      }
+      final license = _commonsLicense(
+        _commonsMetadataValue(metadata, 'LicenseShortName'),
+        _commonsMetadataValue(metadata, 'License'),
+      );
+      if (license == null) continue;
+      final imageUrl = info['thumburl'] as String? ?? info['url'] as String?;
+      final sourceUrl = info['descriptionurl'] as String?;
+      if (!_isHttpsUrlOnHost(imageUrl, const {
+        'upload.wikimedia.org',
+        'thumb.wikimedia.org',
+      })) {
+        continue;
+      }
+      if (!_isHttpsUrlOnHost(sourceUrl, const {'commons.wikimedia.org'})) {
+        continue;
+      }
+      final artist = _stripHtml(_commonsMetadataValue(metadata, 'Artist'));
+      return InatTaxonPhoto(
+        url: imageUrl,
+        attribution: artist.isEmpty ? 'Wikimedia Commons' : artist,
+        license: license,
+        sourceUrl: sourceUrl,
+      );
+    }
+    return null;
+  }
+
+  String _commonsMetadataValue(Map<String, dynamic> metadata, String key) {
+    final entry = metadata[key];
+    return entry is Map<String, dynamic> ? entry['value'] as String? ?? '' : '';
+  }
+
+  bool _containsScientificName(String text, List<String> nameTokens) {
+    final textTokens = _scientificNameTokens(text);
+    if (nameTokens.length > textTokens.length) return false;
+    for (
+      var start = 0;
+      start <= textTokens.length - nameTokens.length;
+      start++
+    ) {
+      var matches = true;
+      for (var offset = 0; offset < nameTokens.length; offset++) {
+        if (textTokens[start + offset] != nameTokens[offset]) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) return true;
+    }
+    return false;
+  }
+
+  List<String> _scientificNameTokens(String text) => text
+      .toLowerCase()
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((token) => token.isNotEmpty)
+      .toList();
+
+  String? _commonsLicense(String shortName, String licenseCode) {
+    final value = '$shortName $licenseCode'.toLowerCase();
+    if (value.contains('cc0') || value.contains('cc-zero')) {
+      return shortName.isEmpty ? 'CC0' : shortName;
+    }
+    if (value.contains('public domain') ||
+        value.contains('pd-old') ||
+        value.contains('pd-art')) {
+      return 'public-domain';
+    }
+    if (RegExp(r'cc[- ]by[- ](sa|nc|nd)').hasMatch(value)) return null;
+    final isAttributionLicense =
+        RegExp(r'^cc\s*by(?:\s+[0-9.]+)?$').hasMatch(shortName.toLowerCase()) ||
+        RegExp(r'^cc-by(?:-[0-9.]+)?$').hasMatch(licenseCode.toLowerCase());
+    if (isAttributionLicense) {
+      return shortName.isEmpty ? 'CC BY' : shortName;
+    }
+    return null;
+  }
+
+  String _stripHtml(String value) => value
+      .replaceAll(RegExp(r'<[^>]*>'), '')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#039;', "'")
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .trim();
+
+  bool _isTrustedPhotoHost(String host) =>
+      host == 'inaturalist.org' ||
+      host.endsWith('.inaturalist.org') ||
+      host.endsWith('.amazonaws.com') ||
+      host == 'upload.wikimedia.org' ||
+      host == 'thumb.wikimedia.org';
+
+  bool _isHttpsUrlOnHost(String? value, Set<String> hosts) {
+    final uri = Uri.tryParse(value ?? '');
+    return uri != null &&
+        uri.scheme == 'https' &&
+        hosts.contains(uri.host.toLowerCase());
+  }
+
   Future<TaxonomyClassification?> getTaxonomicClassification(
     String scientificName,
   ) async {
@@ -185,7 +424,12 @@ class InatService {
     String source = 'iNaturalist',
   }) async {
     final response = await _client
-        .get(uri, headers: const {'User-Agent': 'JandKBestiary/1.0'})
+        .get(
+          uri,
+          headers: const {
+            'User-Agent': 'JandKBestiary/1.0 (species reference app)',
+          },
+        )
         .timeout(const Duration(seconds: 20));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw http.ClientException(
@@ -202,3 +446,6 @@ class InatService {
 
   void close() => _client.close();
 }
+
+String _normalizeScientificName(String value) =>
+    value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');

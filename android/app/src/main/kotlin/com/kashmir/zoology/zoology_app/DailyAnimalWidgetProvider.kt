@@ -254,6 +254,10 @@ class DailyAnimalWidgetProvider : AppWidgetProvider() {
         bitmap: Bitmap,
     ) {
         val cacheFile = cacheFile(context, id)
+        val directory = cacheFile.parentFile
+        if (directory != null && !directory.exists() && !directory.mkdirs()) {
+            throw IOException("The daily animal photo folder could not be created.")
+        }
         cacheFile.outputStream().use { output ->
             if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, output)) {
                 throw IOException("The daily animal photo could not be cached.")
@@ -282,7 +286,10 @@ class DailyAnimalWidgetProvider : AppWidgetProvider() {
 
     private fun cacheFile(context: Context, id: String): File {
         val safeId = id.hashCode().toString().replace("-", "n")
-        return File(context.cacheDir, "daily-animal-$safeId.jpg")
+        return File(
+            File(context.filesDir, "daily-animal-photos"),
+            "daily-animal-$safeId.jpg",
+        )
     }
 
     private fun photoPreferenceKey(id: String) = "photo-${id.hashCode()}"
@@ -298,9 +305,13 @@ class DailyAnimalWidgetProvider : AppWidgetProvider() {
                 "License: ${license.ifBlank { "unspecified" }}",
             ).joinToString(" · ")
         val canCache: Boolean
-            get() = license.startsWith("cc-", ignoreCase = true) ||
-                license.equals("cc0", ignoreCase = true) ||
-                license.equals("public-domain", ignoreCase = true)
+            get() {
+                val normalized = license.trim().lowercase()
+                return normalized == "cc-by" ||
+                    normalized.matches(Regex("cc-by-[0-9.]+")) ||
+                    normalized == "cc0" ||
+                    normalized == "public-domain"
+            }
 
         fun toJson() = JSONObject()
             .put("url", url)
