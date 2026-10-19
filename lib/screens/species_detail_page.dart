@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:zoology_app/models/zoology_species.dart';
+import 'package:zoology_app/theme/bestiary_theme.dart';
+import 'package:zoology_app/widgets/bestiary_mark.dart';
+import 'package:zoology_app/widgets/field_landscape.dart';
 
 class SpeciesDetailPage extends StatelessWidget {
   final ZoologySpecies species;
@@ -12,143 +15,241 @@ class SpeciesDetailPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(species.commonName)),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: LinearGradient(
-                  colors: [Colors.green.shade700, Colors.teal.shade800],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    species.commonName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  height: 228,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: BestiaryPalette.line),
                   ),
-                  const SizedBox(height: 8),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      const FieldLandscape(),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Opacity(
+                          opacity: .45,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 26),
+                            child: BestiaryMark(size: 112),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 22),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${species.category.toUpperCase()}  ·  ${species.region.toUpperCase()}',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: const Color(0xFFE8DFC8)),
+                            ),
+                            const Spacer(),
+                            Text(
+                              species.commonName,
+                              style: Theme.of(context).textTheme.displayMedium
+                                  ?.copyWith(color: BestiaryPalette.page),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              species.scientificName,
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    color: const Color(0xFFE5E6DA),
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (species.searchTerms.isNotEmpty) ...[
+                  const SizedBox(height: 12),
                   Text(
-                    species.scientificName,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                      fontStyle: FontStyle.italic,
-                    ),
+                    'Also searched as: ${species.searchTerms.join(' · ')}',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
-              ),
-            ),
-            if (species.searchTerms.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Also searched as: ${species.searchTerms.join(' · ')}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _InfoChip(label: 'Status', value: species.status),
-                _InfoChip(label: 'Category', value: species.category),
-                _InfoChip(label: 'Size', value: species.size),
-              ],
-            ),
-            if (species.taxonomy.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              _LocalTaxonomy(species: species),
-            ],
-            const SizedBox(height: 20),
-            _detailSection('Region', species.region),
-            _detailSection('Identification', species.identification),
-            _detailSection('Characteristics', species.feature),
-            _detailSection('Habitat', species.habitat),
-            _detailSection('Range & local records', species.distribution),
-            _detailSection('Diet', species.diet),
-            _detailSection('Habit & behavior', species.behavior),
-            _detailSection('Life cycle & breeding', species.breeding),
-            _detailSection('Ecological role', species.ecologicalRole),
-            _detailSection('Threats', species.threats),
-            _detailSection('Conservation status', species.conservation),
-            _detailSection('Fun fact', species.funFact),
-            const SizedBox(height: 22),
-            const _SectionTitle(title: 'Research starting points'),
-            const Text(
-              'These links help you check the scientific name in published '
-              'literature and specialist databases. They are search results, '
-              'not citations for every statement above.',
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _openReference(
-                    context,
-                    Uri.https('scholar.google.com', '/scholar', {
-                      'q': species.scientificName,
-                    }),
-                  ),
-                  icon: const Icon(Icons.science_outlined),
-                  label: const Text('Books & papers'),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _InfoChip(label: 'Status', value: species.status),
+                    _InfoChip(label: 'Category', value: species.category),
+                    _InfoChip(label: 'Size', value: species.size),
+                  ],
                 ),
-                if (species.category == 'Plant')
-                  OutlinedButton.icon(
-                    onPressed: () => _openReference(
-                      context,
-                      Uri.https('powo.science.kew.org', '/results', {
-                        'q': species.scientificName,
-                      }),
+                if (species.taxonomy.isNotEmpty) ...[
+                  const SizedBox(height: 22),
+                  _LocalTaxonomy(species: species),
+                ],
+                const SizedBox(height: 20),
+                _detailSection(context, 'Region', species.region),
+                _detailSection(
+                  context,
+                  'Identification',
+                  species.identification,
+                ),
+                _detailSection(context, 'Characteristics', species.feature),
+                _detailSection(context, 'Habitat', species.habitat),
+                _detailSection(
+                  context,
+                  'Range & local records',
+                  species.distribution,
+                ),
+                _detailSection(context, 'Diet', species.diet),
+                _detailSection(context, 'Habit & behavior', species.behavior),
+                _detailSection(
+                  context,
+                  'Life cycle & breeding',
+                  species.breeding,
+                ),
+                _detailSection(
+                  context,
+                  'Ecological role',
+                  species.ecologicalRole,
+                ),
+                _detailSection(context, 'Threats', species.threats),
+                _detailSection(
+                  context,
+                  'Conservation status',
+                  species.conservation,
+                ),
+                _detailSection(context, 'Fun fact', species.funFact),
+                const SizedBox(height: 22),
+                const _SectionTitle(title: 'Research starting points'),
+                const Text(
+                  'These links help you check the scientific name in published '
+                  'literature and specialist databases. They are search results, '
+                  'not citations for every statement above.',
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _openReference(
+                        context,
+                        Uri.https('scholar.google.com', '/scholar', {
+                          'q': species.scientificName,
+                        }),
+                      ),
+                      icon: const Icon(Icons.science_outlined),
+                      label: const Text('Books & papers'),
                     ),
-                    icon: const Icon(Icons.eco_outlined),
-                    label: const Text('Kew Plants of the World'),
-                  ),
-                OutlinedButton.icon(
-                  onPressed: () => _openReference(
-                    context,
-                    Uri.https('www.inaturalist.org', '/search', {
-                      'q': species.scientificName,
-                    }),
-                  ),
-                  icon: const Icon(Icons.public_rounded),
-                  label: const Text('iNaturalist records'),
+                    if (species.category == 'Plant')
+                      OutlinedButton.icon(
+                        onPressed: () => _openReference(
+                          context,
+                          Uri.https('powo.science.kew.org', '/results', {
+                            'q': species.scientificName,
+                          }),
+                        ),
+                        icon: const Icon(Icons.eco_outlined),
+                        label: const Text('Kew Plants of the World'),
+                      ),
+                    OutlinedButton.icon(
+                      onPressed: () => _openReference(
+                        context,
+                        Uri.https('www.inaturalist.org', '/search', {
+                          'q': species.scientificName,
+                        }),
+                      ),
+                      icon: const Icon(Icons.public_rounded),
+                      label: const Text('iNaturalist records'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Regional guide entries are curated, not a complete census. '
+                  'Range and conservation can vary locally; use the online explorer '
+                  'and linked sources to verify records.',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Regional guide entries are curated, not a complete census. '
-              'Range and conservation can vary locally; use the online explorer '
-              'and linked sources to verify records.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _detailSection(String title, String value) {
+  Widget _detailSection(BuildContext context, String title, String value) {
     if (value.trim().isEmpty) return const SizedBox.shrink();
+    if (title == 'Fun fact') {
+      return Padding(
+        padding: const EdgeInsets.only(top: 20),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: BestiaryPalette.sage,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: BestiaryPalette.line),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.auto_awesome_rounded,
+                color: BestiaryPalette.rust,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'FUN FACT',
+                      style: Theme.of(context).textTheme.labelSmall
+                          ?.copyWith(color: BestiaryPalette.rust),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(value, style: Theme.of(context).textTheme.bodyLarge),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(top: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionTitle(title: title),
-          Text(value),
+          Row(
+            children: [
+              Container(
+                width: 3,
+                height: 17,
+                decoration: BoxDecoration(
+                  color: BestiaryPalette.brass,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Text(value, style: Theme.of(context).textTheme.bodyLarge),
         ],
       ),
     );
@@ -175,8 +276,9 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
-        borderRadius: BorderRadius.circular(12),
+        color: BestiaryPalette.sage,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: BestiaryPalette.line),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

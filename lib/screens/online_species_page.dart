@@ -9,6 +9,8 @@ import 'package:zoology_app/models/zoology_species.dart';
 import 'package:zoology_app/data/species_data.dart';
 import 'package:zoology_app/screens/species_detail_page.dart';
 import 'package:zoology_app/services/inat_service.dart';
+import 'package:zoology_app/theme/bestiary_theme.dart';
+import 'package:zoology_app/widgets/bestiary_banner.dart';
 import 'package:zoology_app/widgets/zoomable_photo.dart';
 
 class OnlineSpeciesPage extends StatefulWidget {
@@ -135,7 +137,7 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Explore species online'),
+        title: const Text('Living atlas'),
         actions: [
           IconButton(
             tooltip: 'Offline species',
@@ -154,18 +156,27 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: Text(
-                    'Search species observed in Jammu & Kashmir. '
-                    'This live community dataset reaches beyond the curated offline guide, '
-                    'but observation records are not a complete census or proof of native range.',
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1120),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const BestiaryBanner(
+                        eyebrow: 'The living atlas',
+                        title: 'Explore the wild',
+                        subtitle: 'Community observations from the mountains and valleys.',
+                        height: 190,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Live records are a learning resource, not a complete census '
+                        'or proof of native range. Offline guide matches are clearly '
+                        'separated from community sightings.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -177,7 +188,7 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
               child: DropdownButtonFormField<String>(
                 initialValue: _placeIds,
                 decoration: const InputDecoration(
-                  labelText: 'Observation region',
+                  labelText: 'Region of observations',
                   border: OutlineInputBorder(),
                 ),
                 items: const [
@@ -269,8 +280,8 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
                   children: [
                     Text(
                       'From the offline field guide',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontFamily: 'serif', fontSize: 21),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -285,7 +296,7 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
               delegate: SliverChildBuilderDelegate((context, index) {
                 final species = curatedMatches[index];
                 return Card(
-                  margin: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                  margin: const EdgeInsets.fromLTRB(18, 6, 18, 10),
                   clipBehavior: Clip.antiAlias,
                   child: ListTile(
                     key: Key('curatedSpecies-${species.id}'),
@@ -298,15 +309,19 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
                     },
                     contentPadding: const EdgeInsets.all(14),
                     leading: CircleAvatar(
-                      backgroundColor: const Color(0xFFEAF0E9),
+                      backgroundColor: BestiaryPalette.sage,
                       child: Icon(
                         species.category == 'Plant'
                             ? Icons.eco_rounded
                             : Icons.pets_rounded,
-                        color: const Color(0xFF365B43),
+                        color: BestiaryPalette.forest,
                       ),
                     ),
-                    title: Text(species.commonName),
+                    title: Text(
+                      species.commonName,
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontFamily: 'serif', fontSize: 18),
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -502,54 +517,84 @@ class _OnlineTaxonTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      margin: const EdgeInsets.fromLTRB(18, 0, 18, 12),
       clipBehavior: Clip.antiAlias,
-      child: ListTile(
+      child: InkWell(
         onTap: onTap,
-        contentPadding: const EdgeInsets.all(12),
-        leading: SizedBox(
-          width: 62,
-          height: 62,
-          child: taxon.photoUrl == null
-              ? const CircleAvatar(child: Icon(Icons.nature_rounded))
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
-                    taxon.photoUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const ColoredBox(
-                          color: Color(0xFFE8F1E9),
-                          child: Icon(Icons.image_not_supported_outlined),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 84,
+                height: 94,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(13),
+                  child: taxon.photoUrl == null
+                      ? const ColoredBox(
+                          color: BestiaryPalette.sage,
+                          child: Icon(
+                            Icons.nature_rounded,
+                            color: BestiaryPalette.forest,
+                            size: 30,
+                          ),
+                        )
+                      : Image.network(
+                          taxon.photoUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const ColoredBox(
+                                color: BestiaryPalette.sage,
+                                child: Icon(Icons.image_not_supported_outlined),
+                              ),
                         ),
-                  ),
                 ),
-        ),
-        title: Text(taxon.displayName),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              taxon.name,
-              style: const TextStyle(fontStyle: FontStyle.italic),
-            ),
-            Text(
-              '${taxon.regionalObservations ?? 0} regional observations'
-              '${taxon.conservationStatus == null ? '' : ' • ${taxon.conservationStatus}'}',
-            ),
-            if (taxon.photoUrl != null)
-              Text(
-                [
-                  taxon.photoAttribution ?? 'Photo credit not provided',
-                  taxon.photoLicense ?? 'License not specified',
-                ].join(' • '),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall,
               ),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      taxon.rank.toUpperCase(),
+                      style: Theme.of(context).textTheme.labelSmall
+                          ?.copyWith(color: BestiaryPalette.rust),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      taxon.displayName,
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontFamily: 'serif', fontSize: 19),
+                    ),
+                    Text(
+                      taxon.name,
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(fontStyle: FontStyle.italic),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${taxon.regionalObservations ?? 0} regional observations'
+                      '${taxon.conservationStatus == null ? '' : ' · ${taxon.conservationStatus}'}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    if (taxon.photoUrl != null)
+                      Text(
+                        [
+                          taxon.photoAttribution ?? 'Photo credit not provided',
+                          taxon.photoLicense ?? 'License not specified',
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.arrow_outward_rounded, size: 19),
+            ],
+          ),
         ),
-        trailing: const Icon(Icons.chevron_right_rounded),
       ),
     );
   }
@@ -831,7 +876,7 @@ class _OfflineSpeciesPageState extends State<OfflineSpeciesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Offline species')),
+      appBar: AppBar(title: const Text('Saved collection')),
       body: FutureBuilder<List<InatTaxon>>(
         future: _savedTaxa,
         builder: (context, snapshot) {
@@ -845,15 +890,57 @@ class _OfflineSpeciesPageState extends State<OfflineSpeciesPage> {
           }
           final taxa = snapshot.data!;
           if (taxa.isEmpty) {
-            return const Center(
-              child: Text(
-                'Open a species online and save its facts for offline use.',
-              ),
+            return ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                const BestiaryBanner(
+                  eyebrow: 'Your pocket library',
+                  title: 'Saved species',
+                  subtitle: 'Reference records kept ready on this device.',
+                  height: 176,
+                ),
+                const SizedBox(height: 20),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: Column(
+                      children: [
+                        const Icon(
+                          Icons.bookmark_add_outlined,
+                          size: 42,
+                          color: BestiaryPalette.moss,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Your collection is ready to grow.',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontFamily: 'serif'),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Explore a species online and save its facts here. '
+                          'Photos and full articles still require internet.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             );
           }
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             children: [
+              const BestiaryBanner(
+                eyebrow: 'Your pocket library',
+                title: 'Saved species',
+                subtitle: 'Reference records kept ready on this device.',
+                height: 176,
+              ),
+              const SizedBox(height: 14),
               const Padding(
                 padding: EdgeInsets.only(bottom: 12),
                 child: Text(
@@ -863,8 +950,18 @@ class _OfflineSpeciesPageState extends State<OfflineSpeciesPage> {
               ...taxa.map(
                 (taxon) => Card(
                   child: ListTile(
-                    leading: const Icon(Icons.menu_book_rounded),
-                    title: Text(taxon.displayName),
+                    leading: CircleAvatar(
+                      backgroundColor: BestiaryPalette.sage,
+                      child: Icon(
+                        Icons.menu_book_rounded,
+                        color: BestiaryPalette.forest,
+                      ),
+                    ),
+                    title: Text(
+                      taxon.displayName,
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontFamily: 'serif', fontSize: 17),
+                    ),
                     subtitle: Text(
                       '${taxon.name} • ${taxon.rank}'
                       '${taxon.conservationStatus == null ? '' : ' • ${taxon.conservationStatus}'}',
@@ -902,11 +999,22 @@ class _CachedTaxonPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(taxon.displayName)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         children: [
+          const BestiaryBanner(
+            eyebrow: 'Cached reference',
+            title: 'A pocket field note',
+            subtitle: 'Names and basic records are stored locally; live references need a connection.',
+            height: 176,
+          ),
+          const SizedBox(height: 18),
+          Text(
+            taxon.displayName,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
           Text(
             taxon.name,
-            style: Theme.of(context).textTheme.titleLarge
+            style: Theme.of(context).textTheme.bodyLarge
                 ?.copyWith(fontStyle: FontStyle.italic),
           ),
           const SizedBox(height: 12),
@@ -1007,7 +1115,7 @@ class _CuratedNaturalHistory extends StatelessWidget {
         if (item.funFact.trim().isNotEmpty) ...[
           const SizedBox(height: 8),
           Card(
-            color: const Color(0xFFEAF0E9),
+            color: BestiaryPalette.sage,
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(

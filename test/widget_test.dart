@@ -38,12 +38,16 @@ void main() {
     );
   });
 
-  testWidgets('app loads the Kashmir zoology home screen', (tester) async {
+  testWidgets('app loads the redesigned field-guide home screen', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const KashmirZoologyApp());
 
     expect(find.text('J&K Bestiary'), findsOneWidget);
-    expect(find.text('Field notebook'), findsOneWidget);
+    expect(find.text('The field guide\nof the Himalaya.'), findsOneWidget);
+    expect(find.byKey(const Key('primaryNavigation')), findsOneWidget);
+    expect(find.text('TODAY IN THE FIELD'), findsOneWidget);
   });
 
   testWidgets('field notes can be saved and appear in recent notes', (
@@ -53,6 +57,8 @@ void main() {
     await tester.pumpWidget(const KashmirZoologyApp());
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const Key('journalTab')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('fieldNotebookToggle')));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('observationNotesField')));
@@ -75,6 +81,8 @@ void main() {
     await tester.pumpWidget(const KashmirZoologyApp());
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const Key('guideTab')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('speciesSearchField')));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChoiceChip, 'Plant'));
@@ -93,7 +101,7 @@ void main() {
     expect(find.text('Range & local records'), findsOneWidget);
     expect(find.text('Ecological role'), findsOneWidget);
     expect(find.text('Life cycle & breeding'), findsOneWidget);
-    expect(find.text('Fun fact'), findsOneWidget);
+    expect(find.text('FUN FACT'), findsOneWidget);
     expect(find.text('Genus'), findsOneWidget);
     expect(find.text('Platanus'), findsOneWidget);
     expect(find.text('Research starting points'), findsOneWidget);
@@ -110,6 +118,8 @@ void main() {
     await tester.pumpWidget(const KashmirZoologyApp());
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const Key('guideTab')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('speciesSearchField')));
     await tester.enterText(
       find.byKey(const Key('speciesSearchField')),
@@ -299,7 +309,16 @@ void main() {
       'Hangul',
     );
     await tester.pumpAndSettle(const Duration(milliseconds: 600));
+    final exploreScrollView = find.descendant(
+      of: find.byType(CustomScrollView),
+      matching: find.byType(Scrollable),
+    );
 
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('curatedSpecies-hangul')),
+      200,
+      scrollable: exploreScrollView.first,
+    );
     expect(find.byKey(const Key('curatedSpecies-hangul')), findsOneWidget);
     expect(find.text('Kashmir Stag'), findsOneWidget);
     expect(find.text('OFFLINE FIELD GUIDE'), findsOneWidget);
@@ -312,6 +331,11 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('curatedSpecies-hangul')),
+        200,
+        scrollable: exploreScrollView.first,
+      );
       expect(find.byKey(const Key('curatedSpecies-hangul')), findsOneWidget);
       expect(find.text('OFFLINE FIELD GUIDE'), findsOneWidget);
     }
@@ -322,12 +346,16 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('curatedSpecies-hangul')));
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('curatedSpecies-hangul')),
+      200,
+      scrollable: exploreScrollView.first,
+    );
     await tester.tap(find.byKey(const Key('curatedSpecies-hangul')));
     await tester.pumpAndSettle();
 
     expect(find.text('Cervus hanglu kashmiricus'), findsOneWidget);
-    expect(find.text('Fun fact'), findsOneWidget);
+    expect(find.text('FUN FACT'), findsOneWidget);
     expect(find.text('Genus'), findsOneWidget);
     expect(find.textContaining('Also searched as: Hangul'), findsOneWidget);
   });

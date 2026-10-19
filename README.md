@@ -3,6 +3,10 @@
 An offline-first Flutter field notebook and species guide, with an online
 India-and-Himalaya species explorer.
 
+The interface is designed as an editorial Himalayan field journal: warm paper
+surfaces, botanical ink colors, an illustrated mountain landscape and
+responsive Discover, Journal and Field Guide sections.
+
 ## Run on a PC
 
 From the project folder:
@@ -29,6 +33,8 @@ flutter run -d edge
 - Create field observations with a camera/gallery photo, species name, place,
   and notes. Notebook entries are saved on the device; open an entry to read its
   full notes and pinch/zoom its photograph.
+- Use the separate Discover, Journal and Field Guide sections to move between
+  the daily species feature, personal observations and the regional catalogue.
 - Open **Explore species online** to search 50 results per page from
   community-observed animal and plant species in Jammu & Kashmir or across
   India and neighboring Himalayan countries, view regional
