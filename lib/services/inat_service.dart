@@ -83,7 +83,6 @@ class InatService {
       Uri.https('api.inaturalist.org', '/v1/taxa/autocomplete', {
         'q': query,
         'taxon_id': '${plants ? plantsTaxonId : animalsTaxonId}',
-        'rank': 'species',
         'per_page': '$pageSize',
         'page': '$page',
       }),
@@ -105,29 +104,40 @@ class InatService {
       );
     }
 
-    final countsJson = await _getJson(
-      Uri.https('api.inaturalist.org', '/v1/observations/species_counts', {
-        'place_id': placeIds,
-        'taxon_id': matchingTaxa.map((taxon) => taxon.id).join(','),
-        'rank': 'species',
-        'quality_grade': 'research',
-        'per_page': '$pageSize',
-        'order': 'desc',
-        'order_by': 'observations_count',
-      }),
-    );
-    final counts = countsJson['results'] as List<dynamic>;
-    final taxa = counts
-        .whereType<Map<String, dynamic>>()
-        .map(InatTaxon.fromSpeciesCountJson)
-        .where((taxon) => _nameMatchesQuery(taxon, queryTerms))
-        .toList();
-    final matchingTaxaCount = matchingTaxaJson['total_results'] as int? ?? 0;
-    return InatSpeciesPage(
-      taxa: taxa,
-      totalResults: countsJson['total_results'] as int? ?? taxa.length,
-      hasMore: page * pageSize < matchingTaxaCount,
-    );
+    try {
+      final countsJson = await _getJson(
+        Uri.https('api.inaturalist.org', '/v1/observations/species_counts', {
+          'place_id': placeIds,
+          'taxon_id': matchingTaxa.map((taxon) => taxon.id).join(','),
+          'rank': 'species',
+          'quality_grade': 'research',
+          'per_page': '$pageSize',
+          'page': '$page',
+          'order': 'desc',
+          'order_by': 'observations_count',
+        }),
+      );
+      final counts = countsJson['results'] as List<dynamic>;
+      final countedTaxa = counts
+          .whereType<Map<String, dynamic>>()
+          .map(InatTaxon.fromSpeciesCountJson)
+          .where((taxon) => _nameMatchesQuery(taxon, queryTerms))
+          .toList();
+
+      final matchingTaxaCount =
+          matchingTaxaJson['total_results'] as int? ?? countedTaxa.length;
+      return InatSpeciesPage(
+        taxa: countedTaxa,
+        totalResults: countsJson['total_results'] as int? ?? countedTaxa.length,
+        hasMore: page * pageSize < matchingTaxaCount,
+      );
+    } catch (_) {
+      return InatSpeciesPage(
+        taxa: matchingTaxa,
+        totalResults: matchingTaxa.length,
+        hasMore: false,
+      );
+    }
   }
 
   List<String> _searchTerms(String value) => value
@@ -168,23 +178,34 @@ class InatService {
   }
 
   Future<InatTaxon?> _findExactTaxon(String scientificName) async {
-    final json = await _getJson(
-      Uri.https('api.inaturalist.org', '/v1/taxa/autocomplete', {
-        'q': scientificName,
-        'rank': 'species',
-        'per_page': '10',
-      }),
-    );
-    final results = json['results'];
-    if (results is! List) {
-      throw const FormatException('Unexpected taxon search results.');
-    }
-    for (final result in results.whereType<Map<String, dynamic>>()) {
-      final taxonName = result['name'];
-      if (taxonName is String &&
-          _normalizeScientificName(taxonName) == scientificName) {
-        return InatTaxon.fromAutocompleteJson(result);
+    try {
+      final json = await _getJson(
+        Uri.https('api.inaturalist.org', '/v1/taxa/autocomplete', {
+          'q': scientificName,
+          'per_page': '10',
+        }),
+      );
+      final results = json['results'];
+      if (results is! List) return null;
+
+      for (final result in results.whereType<Map<String, dynamic>>()) {
+        final taxonName = result['name'];
+        if (taxonName is String) {
+          final normalized = _normalizeScientificName(taxonName);
+          if (normalized == scientificName ||
+              normalized.startsWith(scientificName) ||
+              scientificName.startsWith(normalized)) {
+            return InatTaxon.fromAutocompleteJson(result);
+          }
+        }
       }
+      for (final result in results.whereType<Map<String, dynamic>>()) {
+        if (result['default_photo'] != null) {
+          return InatTaxon.fromAutocompleteJson(result);
+        }
+      }
+    } catch (_) {
+      return null;
     }
     return null;
   }

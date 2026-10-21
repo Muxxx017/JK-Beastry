@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zoology_app/models/inat_taxon.dart';
 import 'package:zoology_app/services/offline_photo_files.dart';
@@ -13,6 +13,7 @@ typedef OfflinePhotoDeleter = Future<void> Function(String? path);
 
 class OfflineTaxaStore {
   static const _storageKey = 'offline_taxa_v1';
+  static final Map<int, InatTaxon> _memoryTaxa = {};
   final OfflinePhotoWriter _writePhoto;
   final OfflinePhotoDeleter _deletePhoto;
 
@@ -23,15 +24,24 @@ class OfflineTaxaStore {
        _deletePhoto = deletePhoto ?? deleteOfflineSpeciesPhoto;
 
   Future<List<InatTaxon>> load() async {
-    final preferences = await SharedPreferences.getInstance();
-    final content = preferences.getString(_storageKey);
-    if (content == null) return [];
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final content = preferences.getString(_storageKey);
+      if (content == null) return _memoryTaxa.values.toList();
 
-    final decoded = jsonDecode(content) as List<dynamic>;
-    return decoded
-        .map((item) => InatTaxon.fromJson(item as Map<String, dynamic>))
-        .toList()
-      ..sort((a, b) => a.displayName.compareTo(b.displayName));
+      final decoded = jsonDecode(content) as List<dynamic>;
+      final list = decoded
+          .map((item) => InatTaxon.fromJson(item as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => a.displayName.compareTo(b.displayName));
+      for (final t in list) {
+        _memoryTaxa[t.id] = t;
+      }
+      return list;
+    } catch (e) {
+      debugPrint('OfflineTaxaStore load fallback: $e');
+      return _memoryTaxa.values.toList();
+    }
   }
 
   Future<void> save(InatTaxon taxon, {Uint8List? photoBytes}) async {
@@ -42,48 +52,56 @@ class OfflineTaxaStore {
         ? prior?.offlinePhotoPath ?? taxon.offlinePhotoPath
         : await _writePhoto(taxon.id, photoBytes);
     final savedTaxon = taxon.copyWith(offlinePhotoPath: photoPath);
+    _memoryTaxa[savedTaxon.id] = savedTaxon;
+
     final updated = [
       for (final saved in taxa)
         if (saved.id != taxon.id) saved,
       savedTaxon,
     ];
-    final preferences = await SharedPreferences.getInstance();
-    final saved = await preferences.setString(
-      _storageKey,
-      jsonEncode(updated.map((item) => item.toJson()).toList()),
-    );
-    if (!saved) {
-      throw StateError('Could not save this species record on the device.');
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        _storageKey,
+        jsonEncode(updated.map((item) => item.toJson()).toList()),
+      );
+    } catch (e) {
+      debugPrint('OfflineTaxaStore save fallback: $e');
     }
   }
 
   Future<void> remove(int taxonId) async {
     final taxa = await load();
-    final removed = taxa.where((taxon) => taxon.id == taxonId);
-    final updated = taxa.where((taxon) => taxon.id != taxonId);
-    final preferences = await SharedPreferences.getInstance();
-    final saved = await preferences.setString(
-      _storageKey,
-      jsonEncode(updated.map((item) => item.toJson()).toList()),
-    );
-    if (!saved) {
-      throw StateError('Could not remove this species record from the device.');
+    final match = taxa.where((saved) => saved.id == taxonId);
+    if (match.isEmpty) return;
+    _memoryTaxa.remove(taxonId);
+
+    try {
+      await _deletePhoto(match.first.offlinePhotoPath);
+    } catch (e) {
+      debugPrint('Could not delete offline photo: $e');
     }
-    if (removed.isNotEmpty) {
-      await _deletePhoto(removed.first.offlinePhotoPath);
+
+    final updated = taxa.where((saved) => saved.id != taxonId).toList();
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        _storageKey,
+        jsonEncode(updated.map((item) => item.toJson()).toList()),
+      );
+    } catch (e) {
+      debugPrint('OfflineTaxaStore remove fallback: $e');
     }
   }
 
   Future<InatTaxon?> findByScientificName(String scientificName) async {
-    final requested = _normalizeScientificName(scientificName);
-    final binomial = requested.split(' ').take(2).join(' ');
-    for (final taxon in await load()) {
-      final savedName = _normalizeScientificName(taxon.name);
-      if (savedName == requested || savedName == binomial) return taxon;
+    final taxa = await load();
+    final target = scientificName.trim().toLowerCase();
+    for (final taxon in taxa) {
+      if (taxon.name.trim().toLowerCase() == target) {
+        return taxon;
+      }
     }
     return null;
   }
 }
-
-String _normalizeScientificName(String value) =>
-    value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');

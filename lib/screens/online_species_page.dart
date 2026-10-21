@@ -32,7 +32,7 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
   int _totalResults = 0;
   int _page = 0;
   bool _hasMoreResults = false;
-  bool _plants = false;
+  final bool _plants = false;
   String _placeIds = InatService.jammuKashmirPlaceId;
   bool _loading = false;
   bool _loadingMore = false;
@@ -45,7 +45,7 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
     if (query.isEmpty) return const [];
 
     return kSpeciesCatalog.where((species) {
-      if (_plants != (species.category == 'Plant')) return false;
+      if (species.category == 'Plant') return false;
       final searchableTerms = _normalizedSearchTerms(species.searchableText);
       return query.every(searchableTerms.contains);
     }).toList();
@@ -211,30 +211,7 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(
-                    value: false,
-                    label: Text('Animals'),
-                    icon: Icon(Icons.pets_rounded),
-                  ),
-                  ButtonSegment(
-                    value: true,
-                    label: Text('Plants'),
-                    icon: Icon(Icons.local_florist_rounded),
-                  ),
-                ],
-                selected: {_plants},
-                onSelectionChanged: (selection) {
-                  setState(() => _plants = selection.first);
-                  _search();
-                },
-              ),
-            ),
-          ),
+          // Zoology exclusive - plant filter removed
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -361,8 +338,8 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
                 child: Text(
                   _queryController.text.trim().isEmpty
                       ? '${_placeIds == InatService.jammuKashmirPlaceId ? 'Jammu & Kashmir' : 'India & neighboring Himalaya'}'
-                            '  ·  ${_taxa.length} of $_totalResults observed ${_plants ? 'plant' : 'animal'} species'
-                      : '${_taxa.length} observed ${_plants ? 'plant' : 'animal'} species whose names match “${_queryController.text.trim()}”'
+                            '  ·  ${_taxa.length} of $_totalResults observed animal species'
+                      : '${_taxa.length} observed animal species whose names match “${_queryController.text.trim()}”'
                             '${_hasMoreResults ? ' · more matches available' : ''}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

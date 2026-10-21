@@ -74,9 +74,9 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
     'Mammal',
     'Bird',
     'Reptile',
+    'Amphibian',
     'Fish',
     'Insect',
-    'Plant',
     'Not recorded',
   ];
 
@@ -90,10 +90,67 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
   String selectedCategory = 'All';
   String query = '';
 
+  static const _navChannel = MethodChannel('com.kashmir.zoology/navigation');
+
   @override
   void initState() {
     super.initState();
     _loadObservations();
+    _initNavigationChannel();
+  }
+
+  void _initNavigationChannel() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      _navChannel.setMethodCallHandler((call) async {
+        if (call.method == 'openSpecies') {
+          final speciesId = call.arguments as String?;
+          if (speciesId != null && speciesId.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _navigateToSpeciesById(speciesId);
+            });
+          }
+        }
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          final initialId =
+              await _navChannel.invokeMethod<String>('getInitialSpeciesId');
+          if (initialId != null && initialId.isNotEmpty && mounted) {
+            _navigateToSpeciesById(initialId);
+          }
+        } catch (e) {
+          debugPrint('Navigation channel error: $e');
+        }
+      });
+    }
+  }
+
+  void _navigateToSpeciesById(String speciesId) {
+    if (!mounted || speciesId.trim().isEmpty) return;
+    final cleanId = speciesId.trim().toLowerCase();
+
+    ZoologySpecies? match;
+    for (final sp in kSpeciesCatalog) {
+      if (sp.id.toLowerCase() == cleanId ||
+          sp.commonName.toLowerCase() == cleanId ||
+          sp.scientificName.toLowerCase() == cleanId) {
+        match = sp;
+        break;
+      }
+    }
+    match ??= kSpeciesCatalog.where((sp) {
+      return sp.id.toLowerCase().contains(cleanId) ||
+          cleanId.contains(sp.id.toLowerCase());
+    }).firstOrNull;
+
+    if (match != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => SpeciesDetailPage(species: match!),
+        ),
+      );
+    }
   }
 
   @override
@@ -117,7 +174,7 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _loadingObservations = false);
-      _showMessage('Could not load field notes: $error');
+      debugPrint('Could not load field notes: $error');
     }
   }
 
@@ -426,8 +483,8 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
 
   Widget _buildDiscoverOverview() {
     final animal = _animalOfTheDay;
-    final plants = kSpeciesCatalog
-        .where((species) => species.category == 'Plant')
+    final threatenedCount = kSpeciesCatalog
+        .where((s) => s.conservation.toLowerCase().contains('endangered') || s.conservation.toLowerCase().contains('vulnerable'))
         .length;
     final date = DateTime.now();
     const months = [
@@ -469,9 +526,9 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                       icon: Icons.menu_book_outlined,
                     ),
                     _CollectionStat(
-                      value: '$plants',
-                      label: 'BOTANICAL NOTES',
-                      icon: Icons.spa_outlined,
+                      value: '$threatenedCount',
+                      label: 'THREATENED FAUNA',
+                      icon: Icons.shield_outlined,
                     ),
                     _CollectionStat(
                       value: '${observations.length}',
@@ -558,6 +615,7 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                     ),
                   ),
                 ),
+                const InteractiveFaunaChallengeCard(),
                 const SizedBox(height: 22),
                 Wrap(
                   spacing: 12,
@@ -1225,13 +1283,41 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                                         ),
                                   ),
                                 ),
-                                Center(
-                                  child: Icon(
-                                    _categoryIcon(species.category),
-                                    size: 38,
-                                    color: const Color(0xFFE9E4D3),
+                                Positioned(
+                                  left: 12,
+                                  bottom: 10,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.55),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _categoryIcon(species.category),
+                                          size: 13,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          species.category.toUpperCase(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.6,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
+                                // Center icon removed for unobstructed photo
                                 Positioned(
                                   right: 5,
                                   top: 4,
@@ -1379,8 +1465,8 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
         return Icons.water_drop_rounded;
       case 'Insect':
         return Icons.bug_report_rounded;
-      case 'Plant':
-        return Icons.local_florist_rounded;
+      case 'Amphibian':
+        return Icons.water_rounded;
       default:
         return Icons.auto_awesome_rounded;
     }
@@ -1564,6 +1650,264 @@ class _SpeciesTag extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+  }
+}
+
+class InteractiveFaunaChallengeCard extends StatefulWidget {
+  const InteractiveFaunaChallengeCard({super.key});
+
+  @override
+  State<InteractiveFaunaChallengeCard> createState() =>
+      _InteractiveFaunaChallengeCardState();
+}
+
+class _InteractiveFaunaChallengeCardState
+    extends State<InteractiveFaunaChallengeCard> {
+  int _questionIndex = 0;
+  int? _selectedAnswer;
+  bool _answered = false;
+
+  final List<Map<String, dynamic>> _questions = const [
+    {
+      'question':
+          'Which critically endangered deer is endemic to Kashmir and famous for its autumn mating bugle in Dachigam?',
+      'options': [
+        'Kashmir Musk Deer',
+        'Kashmir Stag (Hangul)',
+        'Himalayan Serow',
+        'Siberian Ibex'
+      ],
+      'correct': 1,
+      'explanation':
+          'The Hangul (Cervus hanglu kashmiricus) is the state animal of Jammu & Kashmir and finds its last stronghold in Dachigam National Park.',
+    },
+    {
+      'question':
+          'Known as the "Ghost of the Mountains", this solitary apex predator roams the high snowfields of Ladakh and Kishtwar:',
+      'options': [
+        'Himalayan Brown Bear',
+        'Tibetan Wolf',
+        'Snow Leopard',
+        'Common Leopard'
+      ],
+      'correct': 2,
+      'explanation':
+          'The Snow Leopard (Panthera uncia) uses its extraordinarily thick fur and long counterbalancing tail to hunt across precipitous screes.',
+    },
+    {
+      'question':
+          'Which iridescent high-altitude pheasant is renowned for digging alpine bulbs and its ringing curlew-like whistles?',
+      'options': [
+        'Western Tragopan',
+        'Koklass Pheasant',
+        'Kalij Pheasant',
+        'Himalayan Monal'
+      ],
+      'correct': 3,
+      'explanation':
+          'The Himalayan Monal (Lophophorus impejanus) exhibits rainbow plumage in males and loud whistling calls heard across subalpine slopes.',
+    },
+    {
+      'question':
+          'Which animal produces high-pitched sentry alarm whistles from high-altitude talus slopes to warn its colony of raptors?',
+      'options': [
+        'Himalayan Marmot',
+        'Royle\'s Pika',
+        'Ladakh Urial',
+        'Indian Crested Porcupine'
+      ],
+      'correct': 0,
+      'explanation':
+          'The Himalayan Marmot (Marmota himalayana) lives in extensive communal burrow networks across alpine meadows and warns colony members with loud whistles.',
+    },
+    {
+      'question':
+          'Known locally as "Khont", this indigenous river fish is a keystone coldwater swimmer of the Jhelum river basin:',
+      'options': [
+        'Golden Mahseer',
+        'Kashmiri Snow Trout',
+        'Brown Trout',
+        'Common Carp'
+      ],
+      'correct': 1,
+      'explanation':
+          'The Kashmiri Snow Trout (Schizothorax esocinus) is a native cyprinid adapted to fast-flowing, cold snowmelt Himalayan rivers.',
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _questions[_questionIndex % _questions.length];
+    final options = q['options'] as List<String>;
+    final correct = q['correct'] as int;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F7F1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: BestiaryPalette.brass.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: BestiaryPalette.rust,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'INTERACTIVE FAUNA CHALLENGE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Question ${(_questionIndex % _questions.length) + 1}/${_questions.length}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            q['question'] as String,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (int i = 0; i < options.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                onTap: _answered
+                    ? null
+                    : () {
+                        setState(() {
+                          _selectedAnswer = i;
+                          _answered = true;
+                        });
+                        HapticFeedback.lightImpact();
+                      },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: !_answered
+                        ? Colors.white
+                        : i == correct
+                            ? const Color(0xFFE8F5E9)
+                            : i == _selectedAnswer
+                                ? const Color(0xFFFFEBEE)
+                                : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: !_answered
+                          ? const Color(0xFFE0E0E0)
+                          : i == correct
+                              ? const Color(0xFF4CAF50)
+                              : i == _selectedAnswer
+                                  ? const Color(0xFFE57373)
+                                  : const Color(0xFFE0E0E0),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        !_answered
+                            ? Icons.radio_button_unchecked
+                            : i == correct
+                                ? Icons.check_circle_rounded
+                                : i == _selectedAnswer
+                                    ? Icons.cancel_rounded
+                                    : Icons.radio_button_unchecked,
+                        size: 20,
+                        color: !_answered
+                            ? Colors.black38
+                            : i == correct
+                                ? const Color(0xFF2E7D32)
+                                : i == _selectedAnswer
+                                    ? const Color(0xFFC62828)
+                                    : Colors.black26,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          options[i],
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: i == correct && _answered
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (_answered) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F4F8),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                q['explanation'] as String,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: Color(0xFF0D47A1),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _questionIndex++;
+                    _selectedAnswer = null;
+                    _answered = false;
+                  });
+                },
+                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                label: const Text('Next Question'),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

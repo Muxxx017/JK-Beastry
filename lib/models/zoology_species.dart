@@ -17,6 +17,10 @@ class ZoologySpecies {
   final String threats;
   final String ecologicalRole;
   final String identification;
+  final String vocalization;
+  final String imageUrl;
+  final String imageAttribution;
+  final String imageLicense;
   final List<String> searchTerms;
   final Map<String, String> taxonomy;
 
@@ -39,6 +43,10 @@ class ZoologySpecies {
     this.threats = '',
     this.ecologicalRole = '',
     this.identification = '',
+    this.vocalization = '',
+    this.imageUrl = '',
+    this.imageAttribution = '',
+    this.imageLicense = '',
     this.searchTerms = const [],
     this.taxonomy = const {},
   });
@@ -63,6 +71,10 @@ class ZoologySpecies {
       threats: json['threats'] as String? ?? '',
       ecologicalRole: json['ecologicalRole'] as String? ?? '',
       identification: json['identification'] as String? ?? '',
+      vocalization: json['vocalization'] as String? ?? '',
+      imageUrl: json['imageUrl'] as String? ?? '',
+      imageAttribution: json['imageAttribution'] as String? ?? '',
+      imageLicense: json['imageLicense'] as String? ?? '',
       searchTerms:
           (json['searchTerms'] as List<dynamic>?)
               ?.whereType<String>()
@@ -94,6 +106,7 @@ class ZoologySpecies {
     threats,
     ecologicalRole,
     identification,
+    vocalization,
     ...taxonomy.values,
     ...searchTerms,
   ].join(' ').toLowerCase();

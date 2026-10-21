@@ -10,8 +10,14 @@ import org.json.JSONArray
 import org.json.JSONException
 
 class MainActivity : FlutterActivity() {
+
+    private var pendingSpeciesId: String? = null
+    private var navigationChannel: MethodChannel? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Channel: widget data sync
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "com.kashmir.zoology/daily_animal_widget",
@@ -58,6 +64,47 @@ class MainActivity : FlutterActivity() {
                 )
             }
             result.success(null)
+        }
+
+        // Channel: deep-link navigation (widget tap → open species)
+        navigationChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.kashmir.zoology/navigation",
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                if (call.method == "getInitialSpeciesId") {
+                    result.success(pendingSpeciesId)
+                    pendingSpeciesId = null
+                } else {
+                    result.notImplemented()
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val speciesId = intent.getStringExtra(DailyAnimalWidgetProvider.EXTRA_SPECIES_ID)
+        if (!speciesId.isNullOrBlank()) {
+            intent.removeExtra(DailyAnimalWidgetProvider.EXTRA_SPECIES_ID)
+            // If Flutter engine is running, push directly; otherwise buffer it
+            val channel = navigationChannel
+            if (channel != null) {
+                channel.invokeMethod("openSpecies", speciesId)
+            } else {
+                pendingSpeciesId = speciesId
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Handle widget tap that cold-started the activity
+        val speciesId = intent?.getStringExtra(DailyAnimalWidgetProvider.EXTRA_SPECIES_ID)
+        if (!speciesId.isNullOrBlank()) {
+            pendingSpeciesId = speciesId
+            intent?.removeExtra(DailyAnimalWidgetProvider.EXTRA_SPECIES_ID)
         }
     }
 }

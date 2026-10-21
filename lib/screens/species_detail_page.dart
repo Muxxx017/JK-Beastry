@@ -1,4 +1,6 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:zoology_app/models/zoology_species.dart';
 import 'package:zoology_app/theme/bestiary_theme.dart';
@@ -26,7 +28,17 @@ class SpeciesDetailPage extends StatelessWidget {
               children: [
                 SpeciesReferencePhoto(species: species, height: 280),
                 const SizedBox(height: 12),
-                OfflineSpeciesDownloadButton(species: species),
+                Row(
+                  children: [
+                    Expanded(child: OfflineSpeciesDownloadButton(species: species)),
+                    const SizedBox(width: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: () => Navigator.of(context).pop(species.commonName),
+                      icon: const Icon(Icons.edit_note_rounded),
+                      label: const Text('Log Sighting'),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 16),
                 Container(
                   width: double.infinity,
@@ -40,40 +52,45 @@ class SpeciesDetailPage extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       const FieldLandscape(),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Opacity(
-                          opacity: .45,
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 26),
-                            child: BestiaryMark(size: 112),
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: .72),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 22),
+                      Positioned(
+                        left: 18,
+                        right: 18,
+                        bottom: 18,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              '${species.category.toUpperCase()}  ·  ${species.region.toUpperCase()}',
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(color: const Color(0xFFE8DFC8)),
-                            ),
-                            const Spacer(),
+                            const BestiaryMark(),
+                            const SizedBox(height: 8),
                             Text(
                               species.commonName,
-                              style: Theme.of(context).textTheme.displayMedium
-                                  ?.copyWith(color: BestiaryPalette.page),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 4),
                             Text(
                               species.scientificName,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(
-                                    color: const Color(0xFFE5E6DA),
-                                    fontStyle: FontStyle.italic,
-                                  ),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 17,
+                                fontStyle: FontStyle.italic,
+                              ),
                             ),
                           ],
                         ),
@@ -84,7 +101,7 @@ class SpeciesDetailPage extends StatelessWidget {
                 if (species.searchTerms.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text(
-                    'Also searched as: ${species.searchTerms.join(' · ')}',
+                    'Also known as: ${species.searchTerms.join(' · ')}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
@@ -96,6 +113,10 @@ class SpeciesDetailPage extends StatelessWidget {
                     _InfoChip(label: 'Status', value: species.status),
                     _InfoChip(label: 'Category', value: species.category),
                     _InfoChip(label: 'Size', value: species.size),
+                    _InfoChip(
+                      label: 'Conservation',
+                      value: species.conservation,
+                    ),
                   ],
                 ),
                 if (species.taxonomy.isNotEmpty) ...[
@@ -134,6 +155,12 @@ class SpeciesDetailPage extends StatelessWidget {
                   'Conservation status',
                   species.conservation,
                 ),
+                // Interactive vocalization call player
+                if (species.vocalization.trim().isNotEmpty)
+                  InteractiveVocalizationWidget(
+                    vocalization: species.vocalization,
+                    commonName: species.commonName,
+                  ),
                 _detailSection(context, 'Fun fact', species.funFact),
                 const SizedBox(height: 22),
                 const _SectionTitle(title: 'Research starting points'),
@@ -157,17 +184,6 @@ class SpeciesDetailPage extends StatelessWidget {
                       icon: const Icon(Icons.science_outlined),
                       label: const Text('Books & papers'),
                     ),
-                    if (species.category == 'Plant')
-                      OutlinedButton.icon(
-                        onPressed: () => _openReference(
-                          context,
-                          Uri.https('powo.science.kew.org', '/results', {
-                            'q': species.scientificName,
-                          }),
-                        ),
-                        icon: const Icon(Icons.eco_outlined),
-                        label: const Text('Kew Plants of the World'),
-                      ),
                     OutlinedButton.icon(
                       onPressed: () => _openReference(
                         context,
@@ -177,6 +193,16 @@ class SpeciesDetailPage extends StatelessWidget {
                       ),
                       icon: const Icon(Icons.public_rounded),
                       label: const Text('iNaturalist records'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _openReference(
+                        context,
+                        Uri.https('www.iucnredlist.org', '/search', {
+                          'query': species.scientificName,
+                        }),
+                      ),
+                      icon: const Icon(Icons.shield_outlined),
+                      label: const Text('IUCN Red List'),
                     ),
                   ],
                 ),
@@ -204,172 +230,185 @@ class SpeciesDetailPage extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: BestiaryPalette.sage,
+            color: BestiaryPalette.page,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: BestiaryPalette.line),
           ),
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.auto_awesome_rounded,
-                color: BestiaryPalette.rust,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'FUN FACT',
-                      style: Theme.of(context).textTheme.labelSmall
-                          ?.copyWith(color: BestiaryPalette.rust),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(value, style: Theme.of(context).textTheme.bodyLarge),
-                  ],
+              Text(
+                'FUN FACT',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: BestiaryPalette.moss,
                 ),
               ),
+              const SizedBox(height: 6),
+              Text(value, style: Theme.of(context).textTheme.bodyLarge),
             ],
           ),
         ),
       );
     }
+
     return Padding(
       padding: const EdgeInsets.only(top: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 3,
-                height: 17,
-                decoration: BoxDecoration(
-                  color: BestiaryPalette.brass,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              const SizedBox(width: 9),
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-            ],
-          ),
-          const SizedBox(height: 7),
+          _SectionTitle(title: title),
           Text(value, style: Theme.of(context).textTheme.bodyLarge),
         ],
       ),
     );
   }
 
-  Future<void> _openReference(BuildContext context, Uri uri) async {
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open the reference search.')),
-      );
-    }
+  void _openReference(BuildContext context, Uri url) {
+    launchUrl(url, mode: LaunchMode.externalApplication);
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  final String label;
-  final String value;
+class InteractiveVocalizationWidget extends StatefulWidget {
+  final String vocalization;
+  final String commonName;
 
-  const _InfoChip({required this.label, required this.value});
+  const InteractiveVocalizationWidget({
+    super.key,
+    required this.vocalization,
+    required this.commonName,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: BestiaryPalette.sage,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: BestiaryPalette.line),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(value),
-        ],
-      ),
+  State<InteractiveVocalizationWidget> createState() =>
+      _InteractiveVocalizationWidgetState();
+}
+
+class _InteractiveVocalizationWidgetState
+    extends State<InteractiveVocalizationWidget>
+    with SingleTickerProviderStateMixin {
+  bool _isPlaying = false;
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
     );
   }
-}
 
-class _LocalTaxonomy extends StatelessWidget {
-  final ZoologySpecies species;
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
-  const _LocalTaxonomy({required this.species});
+  void _togglePlay() {
+    setState(() {
+      _isPlaying = !_isPlaying;
+      if (_isPlaying) {
+        _controller.repeat(reverse: true);
+        HapticFeedback.lightImpact();
+      } else {
+        _controller.stop();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    const rankOrder = [
-      'Kingdom',
-      'Phylum',
-      'Class',
-      'Order',
-      'Family',
-      'Genus',
-      'Species',
-    ];
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F8F1),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFC8E6C9), width: 1.5),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Scientific classification',
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-            ...rankOrder
-                .where(species.taxonomy.containsKey)
-                .map(
-                  (rank) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 92,
-                          child: Text(
-                            rank,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Colors.black54),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            species.taxonomy[rank]!,
-                            style: TextStyle(
-                              fontStyle: rank == 'Genus' || rank == 'Species'
-                                  ? FontStyle.italic
-                                  : FontStyle.normal,
+            Row(
+              children: [
+                IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: BestiaryPalette.forest,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: Icon(_isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded),
+                  onPressed: _togglePlay,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'VOCALIZATION & SOUNDS',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: BestiaryPalette.forest,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.0,
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      Text(
+                        _isPlaying
+                            ? 'Simulating acoustic wave for ${widget.commonName}...'
+                            : 'Tap to simulate audio call',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.black54,
+                            ),
+                      ),
+                    ],
                   ),
                 ),
-            const SizedBox(height: 8),
-            const Text(
-              'Classification follows the GBIF Backbone Taxonomy; accepted '
-              'names and rank placement can change as taxonomy is revised.',
-              style: TextStyle(fontSize: 12, color: Colors.black54),
+              ],
             ),
-            TextButton.icon(
-              onPressed: () => launchUrl(
-                Uri.https('www.gbif.org', '/species/search', {
-                  'q': species.scientificName,
-                }),
-                mode: LaunchMode.externalApplication,
+            const SizedBox(height: 12),
+            if (_isPlaying)
+              AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  return Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFC8E6C9)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: List.generate(24, (index) {
+                        final wave = (math.sin(
+                                    _controller.value * math.pi * 2 +
+                                        index * 0.45) +
+                                1) /
+                            2;
+                        final height = 6.0 + wave * 22.0;
+                        return Container(
+                          width: 4,
+                          height: height,
+                          decoration: BoxDecoration(
+                            color: BestiaryPalette.forest.withValues(
+                              alpha: 0.6 + wave * 0.4,
+                            ),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        );
+                      }),
+                    ),
+                  );
+                },
               ),
-              icon: const Icon(Icons.open_in_new_rounded, size: 16),
-              label: const Text('Check current GBIF taxonomy'),
-            ),
+            Text(widget.vocalization,
+                style: Theme.of(context).textTheme.bodyMedium),
           ],
         ),
       ),
@@ -390,6 +429,84 @@ class _SectionTitle extends StatelessWidget {
         title,
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _InfoChip({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      label: Text('$label: $value'),
+      backgroundColor: BestiaryPalette.page,
+      side: const BorderSide(color: BestiaryPalette.line),
+    );
+  }
+}
+
+class _LocalTaxonomy extends StatelessWidget {
+  final ZoologySpecies species;
+
+  const _LocalTaxonomy({required this.species});
+
+  @override
+  Widget build(BuildContext context) {
+    final ranks = ['Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species'];
+    final items = ranks
+        .where((rank) => species.taxonomy.containsKey(rank))
+        .map((rank) => MapEntry(rank, species.taxonomy[rank]!))
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(title: 'Taxonomic hierarchy'),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: BestiaryPalette.page,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: BestiaryPalette.line),
+          ),
+          child: Column(
+            children: items.map((e) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 90,
+                      child: Text(
+                        e.key,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: BestiaryPalette.moss,
+                            ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        e.value,
+                        style: TextStyle(
+                          fontStyle: e.key == 'Genus' || e.key == 'Species'
+                              ? FontStyle.italic
+                              : FontStyle.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
     );
   }
 }

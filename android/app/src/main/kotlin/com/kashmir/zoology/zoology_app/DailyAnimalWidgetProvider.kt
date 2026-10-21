@@ -38,19 +38,30 @@ class DailyAnimalWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    private fun buildOpenIntent(context: Context, widgetId: Int, speciesId: String): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = "OPEN_SPECIES"
+            putExtra("species_id", speciesId)
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            context,
+            widgetId,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
     private fun updateWidget(context: Context, widgetId: Int) {
         val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
         val animalsJson = preferences.getString(ANIMALS_KEY, null)
         val manager = AppWidgetManager.getInstance(context)
         val views = RemoteViews(context.packageName, R.layout.daily_animal_widget)
+
+        // Default tap: open app home
         views.setOnClickPendingIntent(
             R.id.daily_animal_widget,
-            PendingIntent.getActivity(
-                context,
-                widgetId,
-                Intent(context, MainActivity::class.java),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            ),
+            buildOpenIntent(context, widgetId, ""),
         )
 
         if (animalsJson.isNullOrBlank()) {
@@ -102,6 +113,12 @@ class DailyAnimalWidgetProvider : AppWidgetProvider() {
         views.setContentDescription(
             R.id.daily_animal_photo,
             "$commonName ($scientificName). $fact",
+        )
+
+        // Update tap intent with the specific species id so the app opens that animal's detail
+        views.setOnClickPendingIntent(
+            R.id.daily_animal_widget,
+            buildOpenIntent(context, widgetId, id),
         )
 
         val cachedPhoto = readCachedPhoto(preferences, id)
@@ -332,6 +349,7 @@ class DailyAnimalWidgetProvider : AppWidgetProvider() {
     companion object {
         const val PREFERENCES = "daily_animal_widget"
         const val ANIMALS_KEY = "animals_json"
+        const val EXTRA_SPECIES_ID = "species_id"
         private const val TAG = "DailyAnimalWidget"
         private const val NETWORK_TIMEOUT_MS = 10000
         private const val MAX_RESPONSE_BYTES = 2 * 1024 * 1024
