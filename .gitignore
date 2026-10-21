@@ -49,4 +49,5 @@ app.*.map.json
 .widget_preview/
 
 *.apk
+!JK-Bestiary-release.apk
 
