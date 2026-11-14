@@ -101,6 +101,7 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
   String selectedCategory = 'All';
   String selectedRegion = 'All';
   String query = '';
+  bool _filterThreatenedOnly = false;
 
   static const _navChannel = MethodChannel('com.kashmir.zoology/navigation');
 
@@ -406,6 +407,14 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
         .trim();
 
     final speciesList = kSpeciesCatalog.where((species) {
+      if (_filterThreatenedOnly) {
+        final c = species.conservation.toLowerCase();
+        final isThreatened = c.contains('endangered') ||
+            c.contains('vulnerable') ||
+            c.contains('critically');
+        if (!isThreatened) return false;
+      }
+
       final matchesCategory =
           selectedCategory == 'All' ||
           species.category == selectedCategory ||
@@ -582,16 +591,33 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                       value: '${kSpeciesCatalog.length}',
                       label: 'FIELD GUIDE ENTRIES',
                       icon: Icons.menu_book_outlined,
+                      onTap: () {
+                        setState(() {
+                          _selectedTab = 2;
+                          _filterThreatenedOnly = false;
+                        });
+                      },
                     ),
                     _CollectionStat(
                       value: '$threatenedCount',
                       label: 'THREATENED FAUNA',
                       icon: Icons.shield_outlined,
+                      onTap: () {
+                        setState(() {
+                          _selectedTab = 2;
+                          _filterThreatenedOnly = true;
+                        });
+                      },
                     ),
                     _CollectionStat(
                       value: '${observations.length}',
                       label: 'YOUR OBSERVATIONS',
                       icon: Icons.edit_note_rounded,
+                      onTap: () {
+                        setState(() {
+                          _selectedTab = 1;
+                        });
+                      },
                     ),
                   ],
                 ),
@@ -600,20 +626,30 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'TODAY IN THE FIELD',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(color: BestiaryPalette.rust),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Meet the ${animal.commonName}',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                        ],
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => SpeciesDetailPage(species: animal),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TODAY IN THE FIELD',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: BestiaryPalette.rust),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Meet the ${animal.commonName}',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     TextButton(
@@ -631,45 +667,61 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                 const SizedBox(height: 12),
                 Card(
                   color: BestiaryPalette.page,
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 92,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: SpeciesReferencePhoto(
-                              species: animal,
-                              height: 112,
+                  clipBehavior: Clip.antiAlias,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(color: BestiaryPalette.line),
+                  ),
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => SpeciesDetailPage(species: animal),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 92,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: SpeciesReferencePhoto(
+                                species: animal,
+                                height: 112,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                animal.scientificName,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(fontStyle: FontStyle.italic),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                animal.funFact,
-                                style: Theme.of(context).textTheme.bodyLarge,
-                              ),
-                            ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  animal.scientificName,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(fontStyle: FontStyle.italic),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  animal.funFact,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Icon(
-                          Icons.bookmark_outline_rounded,
-                          color: BestiaryPalette.brass,
-                        ),
-                      ],
+                          const SizedBox(width: 12),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 16,
+                            color: BestiaryPalette.brass,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1309,6 +1361,39 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                         color: const Color(0xFF263B2A),
                       ),
                     ),
+                    if (_filterThreatenedOnly) ...[
+                      const SizedBox(width: 10),
+                      InkWell(
+                        onTap: () => setState(() => _filterThreatenedOnly = false),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: BestiaryPalette.rust.withAlpha(30),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: BestiaryPalette.rust.withAlpha(75)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.shield_outlined,
+                                  size: 14, color: BestiaryPalette.rust),
+                              SizedBox(width: 4),
+                              Text(
+                                'Threatened only ✕',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: BestiaryPalette.rust,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     const Spacer(),
                     Text(
                       '${filteredSpecies.length} species',
@@ -1642,16 +1727,18 @@ class _CollectionStat extends StatelessWidget {
   final String value;
   final String label;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const _CollectionStat({
     required this.value,
     required this.label,
     required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: BestiaryPalette.page,
@@ -1671,6 +1758,16 @@ class _CollectionStat extends StatelessWidget {
           const SizedBox(width: 8),
           Text(label, style: Theme.of(context).textTheme.labelSmall),
         ],
+      ),
+    );
+
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: content,
       ),
     );
   }
