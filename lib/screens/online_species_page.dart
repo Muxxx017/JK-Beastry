@@ -32,7 +32,6 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
   int _totalResults = 0;
   int _page = 0;
   bool _hasMoreResults = false;
-  final bool _plants = false;
   String _placeIds = InatService.jammuKashmirPlaceId;
   bool _loading = false;
   bool _loadingMore = false;
@@ -40,16 +39,8 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
   Timer? _searchDebounce;
   int _requestVersion = 0;
 
-  List<ZoologySpecies> get _curatedMatches {
-    final query = _normalizedSearchTerms(_queryController.text).toSet();
-    if (query.isEmpty) return const [];
-
-    return kSpeciesCatalog.where((species) {
-      if (species.category == 'Plant') return false;
-      final searchableTerms = _normalizedSearchTerms(species.searchableText);
-      return query.every(searchableTerms.contains);
-    }).toList();
-  }
+  List<ZoologySpecies> get _curatedMatches =>
+      matchCuratedSpecies(_queryController.text);
 
   @override
   void initState() {
@@ -88,7 +79,6 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
     try {
       final result = await _service.searchRegionalSpecies(
         query: _queryController.text,
-        plants: _plants,
         page: requestedPage,
         placeIds: _placeIds,
       );
@@ -287,12 +277,10 @@ class _OnlineSpeciesPageState extends State<OnlineSpeciesPage> {
                       );
                     },
                     contentPadding: const EdgeInsets.all(14),
-                    leading: CircleAvatar(
+                    leading: const CircleAvatar(
                       backgroundColor: BestiaryPalette.sage,
                       child: Icon(
-                        species.category == 'Plant'
-                            ? Icons.eco_rounded
-                            : Icons.pets_rounded,
+                        Icons.pets_rounded,
                         color: BestiaryPalette.forest,
                       ),
                     ),
@@ -486,6 +474,65 @@ List<String> _normalizedSearchTerms(String value) => value
     .split(RegExp(r'[^a-z0-9]+'))
     .where((term) => term.isNotEmpty)
     .toList();
+
+/// Matches curated species from the offline catalog based on partial/prefix query tokens.
+List<ZoologySpecies> matchCuratedSpecies(String queryText) {
+  final cleanQuery = queryText.trim();
+  if (cleanQuery.isEmpty) return const [];
+  final queryTokens = _normalizedSearchTerms(cleanQuery);
+  if (queryTokens.isEmpty) return const [];
+
+  final matches = kSpeciesCatalog.where((species) {
+    if (species.category == 'Plant') return false;
+    final searchableTerms = _normalizedSearchTerms(
+      '${species.id} ${species.id.replaceAll('-', ' ')} ${species.searchableText}',
+    );
+    return queryTokens.every(
+      (qTerm) => searchableTerms.any((term) => term.startsWith(qTerm)),
+    );
+  }).toList();
+
+  final normalizedQuery = cleanQuery.toLowerCase();
+  matches.sort((a, b) {
+    int score(ZoologySpecies s) {
+      final c = s.commonName.toLowerCase();
+      final sci = s.scientificName.toLowerCase();
+      final id = s.id.toLowerCase();
+      if (c == normalizedQuery ||
+          sci == normalizedQuery ||
+          id == normalizedQuery) {
+        return 0;
+      }
+      if (c.startsWith(normalizedQuery) ||
+          sci.startsWith(normalizedQuery) ||
+          id.startsWith(normalizedQuery)) {
+        return 1;
+      }
+      for (final t in s.searchTerms) {
+        final tLower = t.toLowerCase();
+        if (tLower == normalizedQuery || tLower.startsWith(normalizedQuery)) {
+          return 1;
+        }
+      }
+      if (c.contains(normalizedQuery) ||
+          sci.contains(normalizedQuery) ||
+          id.contains(normalizedQuery)) {
+        return 2;
+      }
+      for (final t in s.searchTerms) {
+        if (t.toLowerCase().contains(normalizedQuery)) return 2;
+      }
+      return 3;
+    }
+
+    final scoreA = score(a);
+    final scoreB = score(b);
+    if (scoreA != scoreB) return scoreA.compareTo(scoreB);
+    return a.commonName.compareTo(b.commonName);
+  });
+
+  return matches;
+}
 
 class _OnlineTaxonTile extends StatelessWidget {
   final InatTaxon taxon;

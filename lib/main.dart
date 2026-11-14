@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:zoology_app/data/daily_animal_widget_data.dart';
+import 'package:zoology_app/data/fauna_quiz_data.dart';
 import 'package:zoology_app/data/observation_store.dart';
 import 'package:zoology_app/data/species_data.dart';
+import 'package:zoology_app/models/fauna_quiz_question.dart';
 import 'package:zoology_app/models/field_observation.dart';
 import 'package:zoology_app/models/zoology_species.dart';
 import 'package:zoology_app/screens/online_species_page.dart';
@@ -68,6 +70,7 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
   final _locationController = TextEditingController();
   final _notesController = TextEditingController();
   final _notebookKey = GlobalKey();
+  final FaunaQuizController _quizController = FaunaQuizController();
 
   final List<String> categories = const [
     'All',
@@ -77,7 +80,15 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
     'Amphibian',
     'Fish',
     'Insect',
-    'Not recorded',
+  ];
+
+  final List<String> regions = const [
+    'All',
+    'Jammu',
+    'Kashmir',
+    'Ladakh',
+    'Trans-Himalaya',
+    'Pir Panjal',
   ];
 
   final Set<String> favorites = <String>{};
@@ -88,6 +99,7 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
   bool _notebookExpanded = false;
   int _selectedTab = 0;
   String selectedCategory = 'All';
+  String selectedRegion = 'All';
   String query = '';
 
   static const _navChannel = MethodChannel('com.kashmir.zoology/navigation');
@@ -155,6 +167,7 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
 
   @override
   void dispose() {
+    _quizController.dispose();
     _speciesController.dispose();
     _locationController.dispose();
     _notesController.dispose();
@@ -379,38 +392,83 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
   }
 
   List<ZoologySpecies> get filteredSpecies {
-    final normalizedQuery = query.trim().toLowerCase();
+    final rawQuery = query.trim().toLowerCase();
 
-    final species = kSpeciesCatalog.where((species) {
+    // Tokenize query into words, normalizing punctuation and hyphens
+    final queryTokens = rawQuery
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
+
+    final qSpaced = rawQuery
+        .replaceAll(RegExp(r'[\-_]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final speciesList = kSpeciesCatalog.where((species) {
       final matchesCategory =
           selectedCategory == 'All' ||
           species.category == selectedCategory ||
           (selectedCategory == 'Not recorded' &&
               species.status == 'Not currently recorded');
 
-      final searchableText = species.searchableText;
-      final matchesQuery = normalizedQuery
-          .split(RegExp(r'\s+'))
-          .where((term) => term.isNotEmpty)
-          .every(searchableText.contains);
+      final matchesRegion =
+          selectedRegion == 'All' ||
+          species.region.toLowerCase().contains(selectedRegion.toLowerCase()) ||
+          species.region
+              .toLowerCase()
+              .replaceAll('-', ' ')
+              .contains(selectedRegion.toLowerCase().replaceAll('-', ' ')) ||
+          species.region == selectedRegion;
 
-      return matchesCategory && matchesQuery;
+      if (!matchesCategory || !matchesRegion) return false;
+
+      if (queryTokens.isEmpty) return true;
+
+      final searchDoc = [
+        species.id,
+        species.id.replaceAll('-', ' '),
+        species.commonName,
+        species.commonName.replaceAll('-', ' '),
+        species.scientificName,
+        ...species.searchTerms,
+        ...species.searchTerms.map((t) => t.replaceAll('-', ' ')),
+        ...species.taxonomy.values,
+        species.searchableText,
+        species.searchableText.replaceAll('-', ' '),
+      ].join(' ').toLowerCase();
+
+      return queryTokens.every((token) => searchDoc.contains(token));
     }).toList();
-    if (normalizedQuery.isNotEmpty) {
-      species.sort((first, second) {
-        int relevance(ZoologySpecies item) {
-          final name = '${item.commonName} ${item.scientificName}'
-              .toLowerCase();
-          if (name == normalizedQuery) return 0;
-          if (name.startsWith(normalizedQuery)) return 1;
-          if (name.contains(normalizedQuery)) return 2;
-          return 3;
+
+    if (queryTokens.isNotEmpty) {
+      speciesList.sort((a, b) {
+        final tierA = computeSpeciesRelevanceTier(a, rawQuery);
+        final tierB = computeSpeciesRelevanceTier(b, rawQuery);
+
+        if (tierA != tierB) {
+          return tierA.compareTo(tierB);
         }
 
-        return relevance(first).compareTo(relevance(second));
+        // Secondary tie-breaker: exact word match in commonName
+        final aWords = a.commonName.toLowerCase().split(RegExp(r'[^a-z0-9]+'));
+        final bWords = b.commonName.toLowerCase().split(RegExp(r'[^a-z0-9]+'));
+        final aExactWord = aWords.contains(rawQuery) || aWords.contains(qSpaced);
+        final bExactWord = bWords.contains(rawQuery) || bWords.contains(qSpaced);
+        if (aExactWord != bExactWord) {
+          return aExactWord ? -1 : 1;
+        }
+
+        // Tertiary tie-breaker: length of common name (shorter names first)
+        final lengthComp = a.commonName.length.compareTo(b.commonName.length);
+        if (lengthComp != 0) return lengthComp;
+
+        // Quaternary: alphabetical
+        return a.commonName.compareTo(b.commonName);
       });
     }
-    return species;
+
+    return speciesList;
   }
 
   ZoologySpecies get _animalOfTheDay {
@@ -615,7 +673,7 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                     ),
                   ),
                 ),
-                const InteractiveFaunaChallengeCard(),
+                InteractiveFaunaChallengeCard(controller: _quizController),
                 const SizedBox(height: 22),
                 Wrap(
                   spacing: 12,
@@ -662,7 +720,7 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                   ],
                 ),
                 Text(
-                  'Animals and plants recorded across Jammu & Kashmir.',
+                  'Fauna and wildlife recorded across Jammu & Kashmir.',
                   style: Theme.of(context).textTheme.bodyMedium
                       ?.copyWith(color: BestiaryPalette.mutedInk),
                 ),
@@ -1190,6 +1248,7 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
               child: SizedBox(
                 height: 54,
                 child: ListView.separated(
+                  key: const Key('categoryFilterBar'),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
                   itemCount: categories.length,
@@ -1199,12 +1258,41 @@ class _SpeciesHomePageState extends State<SpeciesHomePage> {
                     final category = categories[index];
                     final isSelected = selectedCategory == category;
                     return ChoiceChip(
+                      key: Key('categoryChip-$category'),
                       label: Text(category),
                       selected: isSelected,
                       onSelected: (_) =>
                           setState(() => selectedCategory = category),
                     );
                   },
+                ),
+              ),
+            ),
+          if (_selectedTab == 2)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: SizedBox(
+                  height: 48,
+                  child: ListView.separated(
+                    key: const Key('regionalFilterBar'),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: regions.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final region = regions[index];
+                      final isSelected = selectedRegion == region;
+                      return ChoiceChip(
+                        key: Key('regionChip-$region'),
+                        label: Text(region),
+                        selected: isSelected,
+                        onSelected: (_) =>
+                            setState(() => selectedRegion = region),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -1655,8 +1743,93 @@ class _SpeciesTag extends StatelessWidget {
   }
 }
 
+class FaunaQuizController extends ChangeNotifier {
+  final List<FaunaQuizQuestion> _initialQuestions;
+  late List<FaunaQuizQuestion> _questions;
+  int _currentIndex = 0;
+  int? _selectedAnswer;
+  bool _answered = false;
+  int _score = 0;
+  bool _isCompleted = false;
+
+  FaunaQuizController({List<FaunaQuizQuestion>? questions})
+      : _initialQuestions =
+            List.unmodifiable(questions ?? kFaunaQuizQuestions) {
+    _questions = List.from(_initialQuestions);
+    if (_questions.isEmpty) {
+      _isCompleted = true;
+    }
+  }
+
+  List<FaunaQuizQuestion> get questions => List.unmodifiable(_questions);
+  int get currentIndex => _currentIndex;
+  int get questionIndex => _currentIndex;
+  int? get selectedAnswer => _selectedAnswer;
+  bool get answered => _answered;
+  bool get isAnswered => _answered;
+  int get score => _score;
+  bool get isCompleted => _isCompleted;
+  int get totalQuestions => _questions.length;
+
+  FaunaQuizQuestion? get currentQuestion => _questions.isEmpty
+      ? null
+      : _questions[_currentIndex % _questions.length];
+
+  void selectAnswer(int index) {
+    if (_answered || _isCompleted || _questions.isEmpty) return;
+    final current = currentQuestion;
+    if (current == null) return;
+    _selectedAnswer = index;
+    _answered = true;
+    if (index == current.correctIndex) {
+      _score++;
+    }
+    notifyListeners();
+  }
+
+  void nextQuestion() {
+    if ((!_answered && !_isCompleted) || _questions.isEmpty) return;
+    if (_isCompleted) return;
+
+    if (_currentIndex < _questions.length - 1) {
+      _currentIndex++;
+      _selectedAnswer = null;
+      _answered = false;
+    } else {
+      _isCompleted = true;
+      _selectedAnswer = null;
+      _answered = false;
+    }
+    notifyListeners();
+  }
+
+  void restartQuiz({bool shuffle = false}) {
+    _currentIndex = 0;
+    _selectedAnswer = null;
+    _answered = false;
+    _score = 0;
+    _isCompleted = false;
+    if (shuffle) {
+      _questions = List.from(_initialQuestions)..shuffle();
+    } else {
+      _questions = List.from(_initialQuestions);
+    }
+    if (_questions.isEmpty) {
+      _isCompleted = true;
+    }
+    notifyListeners();
+  }
+}
+
 class InteractiveFaunaChallengeCard extends StatefulWidget {
-  const InteractiveFaunaChallengeCard({super.key});
+  final FaunaQuizController? controller;
+  final List<FaunaQuizQuestion>? questions;
+
+  const InteractiveFaunaChallengeCard({
+    super.key,
+    this.controller,
+    this.questions,
+  });
 
   @override
   State<InteractiveFaunaChallengeCard> createState() =>
@@ -1665,83 +1838,64 @@ class InteractiveFaunaChallengeCard extends StatefulWidget {
 
 class _InteractiveFaunaChallengeCardState
     extends State<InteractiveFaunaChallengeCard> {
-  int _questionIndex = 0;
-  int? _selectedAnswer;
-  bool _answered = false;
+  FaunaQuizController? _localController;
 
-  final List<Map<String, dynamic>> _questions = const [
-    {
-      'question':
-          'Which critically endangered deer is endemic to Kashmir and famous for its autumn mating bugle in Dachigam?',
-      'options': [
-        'Kashmir Musk Deer',
-        'Kashmir Stag (Hangul)',
-        'Himalayan Serow',
-        'Siberian Ibex'
-      ],
-      'correct': 1,
-      'explanation':
-          'The Hangul (Cervus hanglu kashmiricus) is the state animal of Jammu & Kashmir and finds its last stronghold in Dachigam National Park.',
-    },
-    {
-      'question':
-          'Known as the "Ghost of the Mountains", this solitary apex predator roams the high snowfields of Ladakh and Kishtwar:',
-      'options': [
-        'Himalayan Brown Bear',
-        'Tibetan Wolf',
-        'Snow Leopard',
-        'Common Leopard'
-      ],
-      'correct': 2,
-      'explanation':
-          'The Snow Leopard (Panthera uncia) uses its extraordinarily thick fur and long counterbalancing tail to hunt across precipitous screes.',
-    },
-    {
-      'question':
-          'Which iridescent high-altitude pheasant is renowned for digging alpine bulbs and its ringing curlew-like whistles?',
-      'options': [
-        'Western Tragopan',
-        'Koklass Pheasant',
-        'Kalij Pheasant',
-        'Himalayan Monal'
-      ],
-      'correct': 3,
-      'explanation':
-          'The Himalayan Monal (Lophophorus impejanus) exhibits rainbow plumage in males and loud whistling calls heard across subalpine slopes.',
-    },
-    {
-      'question':
-          'Which animal produces high-pitched sentry alarm whistles from high-altitude talus slopes to warn its colony of raptors?',
-      'options': [
-        'Himalayan Marmot',
-        'Royle\'s Pika',
-        'Ladakh Urial',
-        'Indian Crested Porcupine'
-      ],
-      'correct': 0,
-      'explanation':
-          'The Himalayan Marmot (Marmota himalayana) lives in extensive communal burrow networks across alpine meadows and warns colony members with loud whistles.',
-    },
-    {
-      'question':
-          'Known locally as "Khont", this indigenous river fish is a keystone coldwater swimmer of the Jhelum river basin:',
-      'options': [
-        'Golden Mahseer',
-        'Kashmiri Snow Trout',
-        'Brown Trout',
-        'Common Carp'
-      ],
-      'correct': 1,
-      'explanation':
-          'The Kashmiri Snow Trout (Schizothorax esocinus) is a native cyprinid adapted to fast-flowing, cold snowmelt Himalayan rivers.',
-    },
-  ];
+  FaunaQuizController get _effectiveController =>
+      widget.controller ?? _localController!;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.controller == null) {
+      _localController = FaunaQuizController(
+        questions: widget.questions ?? kFaunaQuizQuestions,
+      );
+    }
+  }
+
+  @override
+  void didUpdateWidget(InteractiveFaunaChallengeCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.controller == null && _localController == null) {
+      _localController = FaunaQuizController(
+        questions: widget.questions ?? kFaunaQuizQuestions,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _localController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final q = _questions[_questionIndex % _questions.length];
-    final options = q['options'] as List<String>;
-    final correct = q['correct'] as int;
+    return ListenableBuilder(
+      listenable: _effectiveController,
+      builder: (context, _) {
+        final controller = _effectiveController;
+        if (controller.isCompleted) {
+          return _buildCompletionView(context, controller);
+        }
+        final q = controller.currentQuestion;
+        if (q == null) {
+          return _buildEmptyView(context, controller);
+        }
+        return _buildQuestionCard(context, controller, q);
+      },
+    );
+  }
+
+  Widget _buildQuestionCard(
+    BuildContext context,
+    FaunaQuizController controller,
+    FaunaQuizQuestion q,
+  ) {
+    final options = q.options;
+    final correct = q.correctIndex;
+    final answered = controller.answered;
+    final selectedAnswer = controller.selectedAnswer;
 
     return Container(
       width: double.infinity,
@@ -1758,7 +1912,11 @@ class _InteractiveFaunaChallengeCardState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
             children: [
               Container(
                 padding:
@@ -1777,9 +1935,8 @@ class _InteractiveFaunaChallengeCardState
                   ),
                 ),
               ),
-              const Spacer(),
               Text(
-                'Question ${(_questionIndex % _questions.length) + 1}/${_questions.length}',
+                'Question ${controller.currentIndex + 1}/${controller.totalQuestions}',
                 style: const TextStyle(
                   fontSize: 12,
                   color: Colors.black54,
@@ -1788,9 +1945,18 @@ class _InteractiveFaunaChallengeCardState
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          Text(
+            'Score: ${controller.score} / ${controller.totalQuestions}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: BestiaryPalette.forest,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 12),
           Text(
-            q['question'] as String,
+            q.prompt,
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -1802,13 +1968,10 @@ class _InteractiveFaunaChallengeCardState
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: InkWell(
-                onTap: _answered
+                onTap: answered
                     ? null
                     : () {
-                        setState(() {
-                          _selectedAnswer = i;
-                          _answered = true;
-                        });
+                        controller.selectAnswer(i);
                         HapticFeedback.lightImpact();
                       },
                 borderRadius: BorderRadius.circular(10),
@@ -1819,20 +1982,20 @@ class _InteractiveFaunaChallengeCardState
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: !_answered
+                    color: !answered
                         ? Colors.white
                         : i == correct
                             ? const Color(0xFFE8F5E9)
-                            : i == _selectedAnswer
+                            : i == selectedAnswer
                                 ? const Color(0xFFFFEBEE)
                                 : Colors.white,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: !_answered
+                      color: !answered
                           ? const Color(0xFFE0E0E0)
                           : i == correct
                               ? const Color(0xFF4CAF50)
-                              : i == _selectedAnswer
+                              : i == selectedAnswer
                                   ? const Color(0xFFE57373)
                                   : const Color(0xFFE0E0E0),
                       width: 1.5,
@@ -1841,19 +2004,19 @@ class _InteractiveFaunaChallengeCardState
                   child: Row(
                     children: [
                       Icon(
-                        !_answered
+                        !answered
                             ? Icons.radio_button_unchecked
                             : i == correct
                                 ? Icons.check_circle_rounded
-                                : i == _selectedAnswer
+                                : i == selectedAnswer
                                     ? Icons.cancel_rounded
                                     : Icons.radio_button_unchecked,
                         size: 20,
-                        color: !_answered
+                        color: !answered
                             ? Colors.black38
                             : i == correct
                                 ? const Color(0xFF2E7D32)
-                                : i == _selectedAnswer
+                                : i == selectedAnswer
                                     ? const Color(0xFFC62828)
                                     : Colors.black26,
                       ),
@@ -1863,7 +2026,7 @@ class _InteractiveFaunaChallengeCardState
                           options[i],
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: i == correct && _answered
+                            fontWeight: i == correct && answered
                                 ? FontWeight.bold
                                 : FontWeight.normal,
                           ),
@@ -1874,16 +2037,17 @@ class _InteractiveFaunaChallengeCardState
                 ),
               ),
             ),
-          if (_answered) ...[
+          if (answered) ...[
             const SizedBox(height: 8),
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: const Color(0xFFE8F4F8),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                q['explanation'] as String,
+                q.explanation,
                 style: const TextStyle(
                   fontSize: 13,
                   height: 1.4,
@@ -1896,11 +2060,7 @@ class _InteractiveFaunaChallengeCardState
               alignment: Alignment.centerRight,
               child: FilledButton.icon(
                 onPressed: () {
-                  setState(() {
-                    _questionIndex++;
-                    _selectedAnswer = null;
-                    _answered = false;
-                  });
+                  controller.nextQuestion();
                 },
                 icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                 label: const Text('Next Question'),
@@ -1911,4 +2071,367 @@ class _InteractiveFaunaChallengeCardState
       ),
     );
   }
+
+  Widget _buildCompletionView(
+    BuildContext context,
+    FaunaQuizController controller,
+  ) {
+    final total = controller.totalQuestions;
+    final score = controller.score;
+    final percent = total > 0 ? ((score / total) * 100).round() : 0;
+    final String rank;
+    if (percent >= 100) {
+      rank = '🏆 Himalayan Master Naturalist';
+    } else if (percent >= 80) {
+      rank = '🦌 Wildlife Field Biologist';
+    } else if (percent >= 60) {
+      rank = '🌲 Apprentice Ranger';
+    } else {
+      rank = '🔍 Junior Field Scout';
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F7F1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: BestiaryPalette.brass.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: BestiaryPalette.rust,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              'INTERACTIVE FAUNA CHALLENGE',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Icon(
+            Icons.emoji_events_rounded,
+            size: 48,
+            color: BestiaryPalette.brass,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Fauna Challenge Complete!',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1B2E1E),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Final Score: $score / $total ($percent%)',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: BestiaryPalette.forest,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: BestiaryPalette.sage.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              rank,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2C3E2D),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              FilledButton.icon(
+                onPressed: () => controller.restartQuiz(shuffle: false),
+                icon: const Icon(Icons.replay_rounded, size: 16),
+                label: const Text('Restart Quiz'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => controller.restartQuiz(shuffle: true),
+                icon: const Icon(Icons.shuffle_rounded, size: 16),
+                label: const Text('Shuffle Questions'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyView(
+    BuildContext context,
+    FaunaQuizController controller,
+  ) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F7F1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: BestiaryPalette.brass.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'INTERACTIVE FAUNA CHALLENGE',
+            style: TextStyle(
+              color: BestiaryPalette.rust,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'No fauna quiz questions available.',
+            style: TextStyle(fontSize: 14, color: Colors.black54),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () => controller.restartQuiz(),
+            child: const Text('Reload Questions'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Computes the relevance tier of a species for a given search query:
+/// - Tier 0: Exact match on `commonName`, `scientificName`, or `id`.
+/// - Tier 1: Prefix match (`startsWith`) on `commonName`, `scientificName`, or vernacular synonyms (`searchTerms`).
+/// - Tier 2: Substring word-boundary match within `commonName`, `scientificName`, or `searchTerms`.
+/// - Tier 3: Taxonomy matches (Order, Family, Genus).
+/// - Tier 4: Matches occurring in descriptive text (habitat, diet, ecological role, etc.).
+int computeSpeciesRelevanceTier(ZoologySpecies s, String query) {
+  final cleanQuery = query
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9\s\-_]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (cleanQuery.isEmpty) return 4;
+
+  final rawQuery = cleanQuery;
+  final qSpaced = rawQuery
+      .replaceAll(RegExp(r'[\-_]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (qSpaced.isEmpty) return 4;
+  final qHyphen = qSpaced.replaceAll(' ', '-');
+  final queryTokens = rawQuery
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((t) => t.isNotEmpty)
+      .toList();
+
+  final idLower = s.id.toLowerCase();
+  final idSpaced = idLower.replaceAll('-', ' ');
+  final commonLower = s.commonName.toLowerCase();
+  final commonSpaced = commonLower.replaceAll(RegExp(r'[\-_]+'), ' ').trim();
+  final sciLower = s.scientificName.toLowerCase();
+
+  final commonClean = commonLower
+      .replaceAll(RegExp(r'[^a-z0-9\s\-_]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  final commonCleanSpaced = commonClean
+      .replaceAll(RegExp(r'[\-_]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  final primaryCommon = commonLower
+      .split('(')
+      .first
+      .trim()
+      .replaceAll(RegExp(r'[^a-z0-9\s\-_]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  final primaryCommonSpaced = primaryCommon
+      .replaceAll(RegExp(r'[\-_]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  final parentheticalCommon = commonLower.contains('(')
+      ? commonLower
+          .split('(')[1]
+          .replaceAll(')', '')
+          .trim()
+          .replaceAll(RegExp(r'[^a-z0-9\s\-_]'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim()
+      : '';
+  final parentheticalSpaced = parentheticalCommon
+      .replaceAll(RegExp(r'[\-_]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  // ---------------------------------------------------------------
+  // Tier 0: Exact match on commonName, scientificName, or id
+  // ---------------------------------------------------------------
+  if (idLower == rawQuery ||
+      idLower == qHyphen ||
+      idSpaced == qSpaced ||
+      commonLower == rawQuery ||
+      commonSpaced == qSpaced ||
+      commonClean == rawQuery ||
+      commonClean == qSpaced ||
+      commonCleanSpaced == qSpaced ||
+      primaryCommon == rawQuery ||
+      primaryCommon == qSpaced ||
+      primaryCommonSpaced == qSpaced ||
+      (parentheticalCommon.isNotEmpty &&
+          (parentheticalCommon == rawQuery ||
+              parentheticalCommon == qSpaced ||
+              parentheticalSpaced == qSpaced)) ||
+      sciLower == rawQuery ||
+      sciLower == qSpaced) {
+    return 0;
+  }
+
+  // ---------------------------------------------------------------
+  // Tier 1: Prefix match (startsWith) on commonName, scientificName,
+  // or vernacular synonyms (searchTerms like "hangul", "drenmo", "shan")
+  // ---------------------------------------------------------------
+  if (commonLower.startsWith(rawQuery) ||
+      commonSpaced.startsWith(qSpaced) ||
+      commonClean.startsWith(rawQuery) ||
+      commonClean.startsWith(qSpaced) ||
+      commonCleanSpaced.startsWith(qSpaced) ||
+      primaryCommon.startsWith(rawQuery) ||
+      primaryCommon.startsWith(qSpaced) ||
+      primaryCommonSpaced.startsWith(qSpaced) ||
+      (parentheticalCommon.isNotEmpty &&
+          (parentheticalCommon.startsWith(rawQuery) ||
+              parentheticalCommon.startsWith(qSpaced) ||
+              parentheticalSpaced.startsWith(qSpaced))) ||
+      sciLower.startsWith(rawQuery) ||
+      sciLower.startsWith(qSpaced) ||
+      idLower.startsWith(rawQuery) ||
+      idLower.startsWith(qHyphen) ||
+      idSpaced.startsWith(qSpaced)) {
+    return 1;
+  }
+
+  for (final term in s.searchTerms) {
+    final tLower = term.toLowerCase();
+    final tClean = tLower
+        .replaceAll(RegExp(r'[^a-z0-9\s\-_]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final tSpaced = tClean
+        .replaceAll(RegExp(r'[\-_]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (tLower == rawQuery ||
+        tClean == rawQuery ||
+        tClean == qSpaced ||
+        tSpaced == qSpaced ||
+        (!tClean.contains(' ') && tClean.startsWith(rawQuery)) ||
+        (!tSpaced.contains(' ') && tSpaced.startsWith(qSpaced)) ||
+        (!tLower.contains(' ') && tLower.startsWith(rawQuery))) {
+      return 1;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Tier 2: Substring word-boundary match within commonName,
+  // scientificName, or searchTerms
+  // ---------------------------------------------------------------
+  final escapedSpaced = RegExp.escape(qSpaced);
+  final escapedRaw = RegExp.escape(rawQuery);
+  final boundaryPattern = RegExp(r'\b' + escapedSpaced, caseSensitive: false);
+  final rawBoundaryPattern = RegExp(r'\b' + escapedRaw, caseSensitive: false);
+
+  if (boundaryPattern.hasMatch(commonSpaced) ||
+      boundaryPattern.hasMatch(commonCleanSpaced) ||
+      rawBoundaryPattern.hasMatch(commonClean) ||
+      rawBoundaryPattern.hasMatch(commonLower) ||
+      boundaryPattern.hasMatch(sciLower) ||
+      rawBoundaryPattern.hasMatch(sciLower)) {
+    return 2;
+  }
+
+  for (final term in s.searchTerms) {
+    final tLower = term.toLowerCase();
+    final tClean = tLower
+        .replaceAll(RegExp(r'[^a-z0-9\s\-_]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final tSpaced = tClean
+        .replaceAll(RegExp(r'[\-_]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (boundaryPattern.hasMatch(tSpaced) ||
+        rawBoundaryPattern.hasMatch(tClean) ||
+        rawBoundaryPattern.hasMatch(tLower) ||
+        tSpaced.contains(qSpaced) ||
+        tClean.contains(rawQuery) ||
+        tLower.contains(rawQuery)) {
+      return 2;
+    }
+  }
+
+  if (commonLower.contains(rawQuery) ||
+      commonClean.contains(rawQuery) ||
+      commonSpaced.contains(qSpaced) ||
+      commonCleanSpaced.contains(qSpaced) ||
+      sciLower.contains(rawQuery) ||
+      sciLower.contains(qSpaced)) {
+    return 2;
+  }
+
+  final nameTokens = [
+    ...commonLower.split(RegExp(r'[^a-z0-9]+')),
+    ...commonClean.split(RegExp(r'[^a-z0-9]+')),
+    ...sciLower.split(RegExp(r'[^a-z0-9]+')),
+  ];
+  if (queryTokens.any((qTok) => nameTokens.any((nTok) => nTok.startsWith(qTok)))) {
+    return 2;
+  }
+
+  // ---------------------------------------------------------------
+  // Tier 3: Taxonomy matches (Order, Family, Genus)
+  // ---------------------------------------------------------------
+  for (final taxValue in s.taxonomy.values) {
+    final taxLower = taxValue.toLowerCase();
+    if (taxLower == rawQuery ||
+        taxLower.startsWith(rawQuery) ||
+        taxLower.contains(rawQuery) ||
+        taxLower.contains(qSpaced)) {
+      return 3;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Tier 4: Matches occurring only in descriptive text (habitat, diet, etc.)
+  // ---------------------------------------------------------------
+  return 4;
 }

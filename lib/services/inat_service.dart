@@ -30,7 +30,7 @@ class InatService {
 
   Future<InatSpeciesPage> searchRegionalSpecies({
     required String query,
-    required bool plants,
+    bool plants = false,
     int page = 1,
     String placeIds = jammuKashmirPlaceId,
   }) async {
@@ -75,7 +75,7 @@ class InatService {
 
   Future<InatSpeciesPage> _searchNamedRegionalSpecies({
     required String query,
-    required bool plants,
+    bool plants = false,
     required int page,
     required String placeIds,
   }) async {

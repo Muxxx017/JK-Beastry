@@ -23,6 +23,9 @@ class ZoologySpecies {
   final String imageLicense;
   final List<String> searchTerms;
   final Map<String, String> taxonomy;
+  final String? audioAsset;
+  final bool isVocal;
+  final String? vocalizationNote;
 
   const ZoologySpecies({
     required this.id,
@@ -49,6 +52,9 @@ class ZoologySpecies {
     this.imageLicense = '',
     this.searchTerms = const [],
     this.taxonomy = const {},
+    this.audioAsset,
+    this.isVocal = true,
+    this.vocalizationNote,
   });
 
   factory ZoologySpecies.fromJson(Map<String, dynamic> json) {
@@ -85,6 +91,99 @@ class ZoologySpecies {
             (key, value) => MapEntry(key, value.toString()),
           ) ??
           const {},
+      audioAsset: json['audioAsset'] as String?,
+      isVocal: json['isVocal'] as bool? ?? true,
+      vocalizationNote: json['vocalizationNote'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'commonName': commonName,
+    'scientificName': scientificName,
+    'category': category,
+    'region': region,
+    'status': status,
+    'habitat': habitat,
+    'size': size,
+    'conservation': conservation,
+    'feature': feature,
+    'funFact': funFact,
+    'distribution': distribution,
+    'diet': diet,
+    'behavior': behavior,
+    'breeding': breeding,
+    'threats': threats,
+    'ecologicalRole': ecologicalRole,
+    'identification': identification,
+    'vocalization': vocalization,
+    'imageUrl': imageUrl,
+    'imageAttribution': imageAttribution,
+    'imageLicense': imageLicense,
+    'searchTerms': searchTerms,
+    'taxonomy': taxonomy,
+    if (audioAsset != null) 'audioAsset': audioAsset,
+    'isVocal': isVocal,
+    if (vocalizationNote != null) 'vocalizationNote': vocalizationNote,
+  };
+
+  ZoologySpecies copyWith({
+    String? id,
+    String? commonName,
+    String? scientificName,
+    String? category,
+    String? region,
+    String? status,
+    String? habitat,
+    String? size,
+    String? conservation,
+    String? feature,
+    String? funFact,
+    String? distribution,
+    String? diet,
+    String? behavior,
+    String? breeding,
+    String? threats,
+    String? ecologicalRole,
+    String? identification,
+    String? vocalization,
+    String? imageUrl,
+    String? imageAttribution,
+    String? imageLicense,
+    List<String>? searchTerms,
+    Map<String, String>? taxonomy,
+    String? audioAsset,
+    bool? isVocal,
+    String? vocalizationNote,
+  }) {
+    return ZoologySpecies(
+      id: id ?? this.id,
+      commonName: commonName ?? this.commonName,
+      scientificName: scientificName ?? this.scientificName,
+      category: category ?? this.category,
+      region: region ?? this.region,
+      status: status ?? this.status,
+      habitat: habitat ?? this.habitat,
+      size: size ?? this.size,
+      conservation: conservation ?? this.conservation,
+      feature: feature ?? this.feature,
+      funFact: funFact ?? this.funFact,
+      distribution: distribution ?? this.distribution,
+      diet: diet ?? this.diet,
+      behavior: behavior ?? this.behavior,
+      breeding: breeding ?? this.breeding,
+      threats: threats ?? this.threats,
+      ecologicalRole: ecologicalRole ?? this.ecologicalRole,
+      identification: identification ?? this.identification,
+      vocalization: vocalization ?? this.vocalization,
+      imageUrl: imageUrl ?? this.imageUrl,
+      imageAttribution: imageAttribution ?? this.imageAttribution,
+      imageLicense: imageLicense ?? this.imageLicense,
+      searchTerms: searchTerms ?? this.searchTerms,
+      taxonomy: taxonomy ?? this.taxonomy,
+      audioAsset: audioAsset ?? this.audioAsset,
+      isVocal: isVocal ?? this.isVocal,
+      vocalizationNote: vocalizationNote ?? this.vocalizationNote,
     );
   }
 
@@ -107,6 +206,7 @@ class ZoologySpecies {
     ecologicalRole,
     identification,
     vocalization,
+    ?vocalizationNote,
     ...taxonomy.values,
     ...searchTerms,
   ].join(' ').toLowerCase();

@@ -351,7 +351,7 @@ void main() {
     await tester.tap(find.byKey(const Key('curatedSpecies-hangul')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Cervus hanglu kashmiricus'), findsOneWidget);
+    expect(find.text('Cervus hanglu hanglu'), findsOneWidget);
     expect(find.text('FUN FACT'), findsOneWidget);
     expect(find.text('Genus'), findsOneWidget);
     expect(find.textContaining('hangul'), findsAtLeast(1));

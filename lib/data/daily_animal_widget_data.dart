@@ -1,12 +1,21 @@
 import 'package:zoology_app/models/zoology_species.dart';
 
+const _faunaCategories = {
+  'mammal',
+  'bird',
+  'reptile',
+  'amphibian',
+  'fish',
+  'insect',
+};
+
 List<Map<String, String>> buildDailyAnimalWidgetRecords(
   Iterable<ZoologySpecies> speciesCatalog,
 ) {
   return speciesCatalog
       .where(
         (species) =>
-            species.category.toLowerCase() != 'plant' &&
+            _faunaCategories.contains(species.category.toLowerCase()) &&
             species.funFact.trim().isNotEmpty,
       )
       .map(

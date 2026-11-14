@@ -8,7 +8,9 @@ An offline-first Flutter field notebook and zoological species guide to Jammu & 
 
 Install the latest app directly on your Android phone:
 
-👉 **[Download JK-Bestiary-release.apk (v1.3.0)](https://github.com/Muxxx017/JK-Beastry/raw/main/JK-Bestiary-release.apk)** *(57.8 MB)*
+👉 **[Download JK-Bestiary-release.apk (v1.5.0)](https://github.com/Muxxx017/JK-Beastry/raw/main/JK-Bestiary-release.apk)** *(87.4 MB - 144 Regional Species, 146 Offline Photos, 20 Bioacoustic Recordings, 37-Question Quiz)*
+
+Or download directly from [GitHub Releases (v1.5.0)](https://github.com/Muxxx017/JK-Beastry/releases/tag/v1.5.0).
 
 #### How to install:
 1. Tap the download link above on your phone.
