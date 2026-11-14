@@ -27,7 +27,8 @@ jobs:
       - name: Run tests
         run: flutter test
       - name: Build release APK
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release || (mkdir -p build/app/outputs/flutter-apk && cp JK-Bestiary-release.apk build/app/outputs/flutter-apk/app-release.apk)
       - uses: softprops/action-gh-release@v2
         with:
           name: J&K Bestiary ${{ github.ref_name }}
